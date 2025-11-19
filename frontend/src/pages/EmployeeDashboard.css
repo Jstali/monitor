@@ -1,0 +1,59 @@
+.session-status {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    padding: 16px;
+    border-radius: 8px;
+    background: var(--bg);
+    border: 1px solid var(--border);
+}
+
+.session-status.active {
+    background: #d1fae5;
+    border-color: #a7f3d0;
+}
+
+.session-status.inactive {
+    background: #fee2e2;
+    border-color: #fecaca;
+}
+
+.status-indicator {
+    width: 12px;
+    height: 12px;
+    border-radius: 50%;
+    flex-shrink: 0;
+}
+
+.session-status.active .status-indicator {
+    background: var(--success);
+    animation: pulse 2s infinite;
+}
+
+.session-status.inactive .status-indicator {
+    background: var(--danger);
+}
+
+@keyframes pulse {
+
+    0%,
+    100% {
+        opacity: 1;
+    }
+
+    50% {
+        opacity: 0.5;
+    }
+}
+
+.status-title {
+    font-weight: 600;
+    font-size: 16px;
+    color: var(--dark);
+    margin-bottom: 4px;
+}
+
+.status-subtitle {
+    font-size: 13px;
+    color: var(--gray);
+}

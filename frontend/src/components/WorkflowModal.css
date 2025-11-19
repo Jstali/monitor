@@ -1,0 +1,123 @@
+.workflow-modal-overlay {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: rgba(0, 0, 0, 0.7);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 1000;
+}
+
+.workflow-modal-content {
+    background: white;
+    border-radius: 12px;
+    width: 90%;
+    max-width: 1200px;
+    max-height: 90vh;
+    display: flex;
+    flex-direction: column;
+    box-shadow: 0 10px 40px rgba(0, 0, 0, 0.3);
+}
+
+.workflow-modal-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 20px 30px;
+    border-bottom: 1px solid #e5e7eb;
+}
+
+.workflow-modal-header h2 {
+    margin: 0;
+    color: #1f2937;
+    font-size: 24px;
+}
+
+.close-btn {
+    background: none;
+    border: none;
+    font-size: 32px;
+    color: #6b7280;
+    cursor: pointer;
+    padding: 0;
+    width: 32px;
+    height: 32px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 4px;
+    transition: background 0.2s;
+}
+
+.close-btn:hover {
+    background: #f3f4f6;
+    color: #1f2937;
+}
+
+.workflow-modal-body {
+    flex: 1;
+    overflow-y: auto;
+    padding: 30px;
+}
+
+.workflow-summary-section {
+    margin-bottom: 30px;
+}
+
+.workflow-summary-section h3 {
+    color: #374151;
+    margin-bottom: 15px;
+    font-size: 18px;
+}
+
+.workflow-summary-text {
+    background: #f9fafb;
+    border: 1px solid #e5e7eb;
+    border-radius: 8px;
+    padding: 20px;
+}
+
+.workflow-summary-text pre {
+    margin: 0;
+    font-family: 'SF Mono', 'Monaco', 'Consolas', monospace;
+    font-size: 14px;
+    line-height: 1.8;
+    color: #1f2937;
+    white-space: pre-wrap;
+}
+
+.workflow-diagram-section h3 {
+    color: #374151;
+    margin-bottom: 15px;
+    font-size: 18px;
+}
+
+.mermaid-container {
+    background: #ffffff;
+    border: 1px solid #e5e7eb;
+    border-radius: 8px;
+    padding: 30px;
+    overflow-x: auto;
+    min-height: 400px;
+}
+
+.mermaid {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+}
+
+.workflow-modal-footer {
+    padding: 20px 30px;
+    border-top: 1px solid #e5e7eb;
+    display: flex;
+    justify-content: flex-end;
+}
+
+.workflow-modal-footer .btn {
+    padding: 10px 24px;
+    font-size: 14px;
+}

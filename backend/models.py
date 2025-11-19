@@ -1,0 +1,146 @@
+from datetime import datetime
+from flask_sqlalchemy import SQLAlchemy
+import bcrypt
+
+db = SQLAlchemy()
+
+class Organization(db.Model):
+    """Organization model"""
+    __tablename__ = 'organizations'
+    
+    id = db.Column(db.Integer, primary_key=True)
+    name = db.Column(db.String(200), nullable=False)
+    screenshot_interval = db.Column(db.Integer, default=10)  # seconds
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    
+    # Relationships
+    employees = db.relationship('Employee', backref='organization', lazy=True, cascade='all, delete-orphan')
+    
+    def to_dict(self):
+        return {
+            'id': self.id,
+            'name': self.name,
+            'screenshot_interval': self.screenshot_interval,
+            'created_at': self.created_at.isoformat(),
+            'employee_count': len(self.employees)
+        }
+
+
+class Employee(db.Model):
+    """Employee model"""
+    __tablename__ = 'employees'
+    
+    id = db.Column(db.Integer, primary_key=True)
+    email = db.Column(db.String(200), unique=True, nullable=False)
+    name = db.Column(db.String(200), nullable=False)
+    password_hash = db.Column(db.String(255), nullable=False)
+    role = db.Column(db.String(50), default='employee')  # 'admin' or 'employee'
+    organization_id = db.Column(db.Integer, db.ForeignKey('organizations.id'), nullable=False)
+    is_active = db.Column(db.Boolean, default=True)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    
+    # Relationships
+    sessions = db.relationship('MonitoringSession', backref='employee', lazy=True, cascade='all, delete-orphan')
+    
+    def set_password(self, password):
+        """Hash and set password"""
+        self.password_hash = bcrypt.hashpw(password.encode('utf-8'), bcrypt.gensalt()).decode('utf-8')
+    
+    def check_password(self, password):
+        """Check if password matches"""
+        return bcrypt.checkpw(password.encode('utf-8'), self.password_hash.encode('utf-8'))
+    
+    def to_dict(self, include_sessions=False):
+        data = {
+            'id': self.id,
+            'email': self.email,
+            'name': self.name,
+            'role': self.role,
+            'organization_id': self.organization_id,
+            'is_active': self.is_active,
+            'created_at': self.created_at.isoformat()
+        }
+        if include_sessions:
+            data['sessions'] = [s.to_dict() for s in self.sessions]
+        return data
+
+
+class MonitoringSession(db.Model):
+    """Monitoring session model - tracks a period of monitoring"""
+    __tablename__ = 'monitoring_sessions'
+    
+    id = db.Column(db.Integer, primary_key=True)
+    employee_id = db.Column(db.Integer, db.ForeignKey('employees.id'), nullable=False)
+    start_time = db.Column(db.DateTime, default=datetime.utcnow)
+    end_time = db.Column(db.DateTime, nullable=True)
+    is_active = db.Column(db.Boolean, default=True)
+    
+    # Relationships
+    activities = db.relationship('Activity', backref='session', lazy=True, cascade='all, delete-orphan')
+    screenshots = db.relationship('Screenshot', backref='session', lazy=True, cascade='all, delete-orphan')
+    
+    def to_dict(self, include_details=False):
+        data = {
+            'id': self.id,
+            'employee_id': self.employee_id,
+            'start_time': self.start_time.isoformat(),
+            'end_time': self.end_time.isoformat() if self.end_time else None,
+            'is_active': self.is_active,
+            'duration_seconds': (self.end_time - self.start_time).total_seconds() if self.end_time else None
+        }
+        if include_details:
+            data['activities'] = [a.to_dict() for a in self.activities]
+            data['screenshots'] = [s.to_dict() for s in self.screenshots]
+        return data
+
+
+class Activity(db.Model):
+    """Activity tracking - applications and websites"""
+    __tablename__ = 'activities'
+    
+    id = db.Column(db.Integer, primary_key=True)
+    session_id = db.Column(db.Integer, db.ForeignKey('monitoring_sessions.id'), nullable=False)
+    timestamp = db.Column(db.DateTime, default=datetime.utcnow)
+    activity_type = db.Column(db.String(50))  # 'application' or 'website'
+    application_name = db.Column(db.String(200), nullable=True)
+    window_title = db.Column(db.String(500), nullable=True)
+    url = db.Column(db.String(1000), nullable=True)
+    duration_seconds = db.Column(db.Integer, default=0)
+    
+    def to_dict(self):
+        return {
+            'id': self.id,
+            'session_id': self.session_id,
+            'timestamp': self.timestamp.isoformat(),
+            'activity_type': self.activity_type,
+            'application_name': self.application_name,
+            'window_title': self.window_title,
+            'url': self.url,
+            'duration_seconds': self.duration_seconds
+        }
+
+
+class Screenshot(db.Model):
+    """Screenshot model"""
+    __tablename__ = 'screenshots'
+    
+    id = db.Column(db.Integer, primary_key=True)
+    session_id = db.Column(db.Integer, db.ForeignKey('monitoring_sessions.id'), nullable=False)
+    timestamp = db.Column(db.DateTime, default=datetime.utcnow)
+    file_path = db.Column(db.String(500), nullable=False)
+    file_size = db.Column(db.Integer)
+    extracted_text = db.Column(db.Text, nullable=True)
+    extraction_data = db.Column(db.JSON, nullable=True)  # Store full extraction response
+    is_processed = db.Column(db.Boolean, default=False)
+    
+    def to_dict(self):
+        return {
+            'id': self.id,
+            'session_id': self.session_id,
+            'timestamp': self.timestamp.isoformat(),
+            'file_path': self.file_path,
+            'file_size': self.file_size,
+            'extracted_text': self.extracted_text,
+            'extraction_data': self.extraction_data,
+            'is_processed': self.is_processed
+        }
