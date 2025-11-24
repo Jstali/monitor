@@ -45,12 +45,40 @@ cp .env.example .env
 python monitor_agent.py
 ```
 
+## 🗄️ Database Setup (Required First!)
+
+**IMPORTANT**: Run this BEFORE starting the backend for the first time:
+
+```bash
+cd backend
+source venv/bin/activate
+
+# Create database and tables
+python create_db.py
+
+# Run migrations to add organization support
+python migrate_add_organization.py
+
+# Reset password for your user (if needed)
+python reset_password.py
+```
+
+This ensures:
+- PostgreSQL database is created
+- All tables have the correct schema
+- Organization support is enabled
+- Passwords are properly hashed with bcrypt
+
 ## 🔑 Configuration
 
 ### Backend (.env)
 ```env
+DATABASE_URL=postgresql+psycopg://postgres:your_password@localhost:5432/monitor
+SECRET_KEY=your-secret-key-here-change-in-production
+JWT_SECRET_KEY=your-jwt-secret-key-here-change-in-production
 EXTRACTION_API_KEY=CNYRMJHhgFHMJQQBqgKKNX6zjwXzFmQ0
 EXTRACTION_API_URL=https://your-api-endpoint.com/extract
+FLASK_ENV=development
 ```
 
 ### Agent (.env)

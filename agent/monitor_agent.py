@@ -127,12 +127,18 @@ class MonitoringAgent:
         app_name = window_info['application']
         window_title = window_info['title']
         
+        # DEBUG: Print what we're checking
+        print(f"DEBUG: Checking app='{app_name}', title='{window_title[:50]}...'")
+        
         # Check each allowlist item
         for item in self.allowlist:
             if item['config_type'] == 'application':
                 # Case-insensitive application name matching
                 if item['pattern'].lower() in app_name.lower():
+                    print(f"DEBUG: ✓ MATCH! '{item['pattern']}' found in '{app_name}'")
                     return (True, item['folder_name'], item['pattern'])
+                else:
+                    print(f"DEBUG: ✗ No match: '{item['pattern']}' not in '{app_name}'")
             
             elif item['config_type'] == 'url':
                 # Check if it's a browser and URL matches
@@ -140,9 +146,11 @@ class MonitoringAgent:
                 is_browser = any(browser.lower() in app_name.lower() for browser in browsers)
                 
                 if is_browser and item['pattern'].lower() in window_title.lower():
+                    print(f"DEBUG: ✓ URL MATCH! '{item['pattern']}' found in title")
                     return (True, item['folder_name'], item['pattern'])
         
         # Not in allowlist
+        print(f"DEBUG: ✗ NOT IN ALLOWLIST - Skipping capture")
         return (False, None, None)
     
     def capture_screenshot(self):
