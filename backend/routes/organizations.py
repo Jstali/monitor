@@ -73,12 +73,19 @@ def get_organization_employees(org_id):
     employee_id = int(get_jwt_identity())
     employee = Employee.query.get(employee_id)
     
-    if employee.role != 'admin' or employee.organization_id != org_id:
+    # Check if user is admin or super_admin
+    if employee.role not in ['admin', 'super_admin'] or employee.organization_id != org_id:
         return jsonify({'error': 'Admin access required'}), 403
     
     organization = Organization.query.get(org_id)
     if not organization:
         return jsonify({'error': 'Organization not found'}), 404
     
-    employees = Employee.query.filter_by(organization_id=org_id).all()
+    # Super admins see all employees, regular admins see only their managed employees
+    if employee.role == 'super_admin':
+        employees = Employee.query.filter_by(organization_id=org_id).all()
+    else:  # regular admin (manager)
+        # Get employees managed by this admin
+        employees = Employee.query.filter_by(organization_id=org_id, manager_id=employee_id).all()
+    
     return jsonify([emp.to_dict() for emp in employees]), 200

@@ -1,9 +1,14 @@
+
 import React, { useState, useEffect } from 'react';
 import { useAuth } from '../context/AuthContext';
-import { monitoringAPI, screenshotAPI } from '../services/api';
-import { Activity, Image, LogOut, Clock, Download } from 'lucide-react';
-import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts';
+import { monitoringAPI, screenshotAPI, workflowAPI } from '../services/api';
+import { Play, Square, RefreshCw, Clock, Image, Activity, Download, FileText, Layers, TrendingUp, LogOut } from 'lucide-react';
+import AuthenticatedImage from '../components/AuthenticatedImage';
+
+import ProcessMiningModal from '../components/ProcessMiningModal';
+import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, PieChart, Pie, Cell, LineChart, Line } from 'recharts';
 import './EmployeeDashboard.css';
+import { formatToIST, formatTimeToIST } from '../utils/dateUtils';
 
 const EmployeeDashboard = () => {
   const { user, logout } = useAuth();
@@ -13,6 +18,8 @@ const EmployeeDashboard = () => {
   const [screenshots, setScreenshots] = useState([]);
   const [activities, setActivities] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [processing, setProcessing] = useState(false);
+  const [showProcessMining, setShowProcessMining] = useState(false);
 
   useEffect(() => {
     loadData();
@@ -72,6 +79,44 @@ const EmployeeDashboard = () => {
       alert('Failed to download screenshot');
     }
   };
+
+  const handleExtractAll = async () => {
+    if (!selectedSession) return;
+    
+    try {
+      setProcessing(true);
+      
+      // Get all unprocessed screenshot IDs
+      const unprocessed = screenshots.filter(s => !s.is_processed);
+      
+      if (unprocessed.length === 0) {
+        alert('All screenshots are already processed!');
+        setProcessing(false);
+        return;
+      }
+      
+      const screenshotIds = unprocessed.map(s => s.id);
+      
+      // Use batch extraction API
+      await screenshotAPI.extractBatch(screenshotIds);
+      
+      // Refresh screenshots to get updated data
+      const screenshotsRes = await screenshotAPI.getSessionScreenshots(selectedSession.id);
+      setScreenshots(screenshotsRes.data);
+      
+      alert(`Successfully processed ${screenshotIds.length} screenshots!`);
+      
+      // Automatically show process mining analysis
+      setShowProcessMining(true);
+    } catch (error) {
+      console.error('Extraction or workflow generation failed:', error);
+      alert('Failed to extract data. Check console for details.');
+    } finally {
+      setProcessing(false);
+    }
+  };
+
+
 
   const handleStartSession = async () => {
     try {
@@ -151,7 +196,7 @@ const EmployeeDashboard = () => {
               <div className="status-content">
                 <div className="status-title">Monitoring Active</div>
                 <div className="status-subtitle">
-                  Started at {new Date(currentSession.start_time).toLocaleString()}
+                  Started at {formatToIST(currentSession.start_time)}
                 </div>
                 <div className="guidance-text">
                   <p><strong>Monitoring is active.</strong> Your screen activity is being recorded.</p>
@@ -241,8 +286,8 @@ const EmployeeDashboard = () => {
               <tbody>
                 {sessions.map((session) => (
                   <tr key={session.id}>
-                    <td>{new Date(session.start_time).toLocaleString()}</td>
-                    <td>{session.end_time ? new Date(session.end_time).toLocaleString() : '-'}</td>
+                    <td>{formatToIST(session.start_time)}</td>
+                    <td>{formatToIST(session.end_time)}</td>
                     <td>{session.duration_seconds ? `${Math.round(session.duration_seconds / 60)} min` : '-'}</td>
                     <td>
                       <span className={`badge badge-${session.is_active ? 'success' : 'danger'}`}>
@@ -286,16 +331,44 @@ const EmployeeDashboard = () => {
 
             {/* Screenshots */}
             <div className="card">
-              <h2>
-                <Image size={20} />
-                Screenshots ({screenshots.length})
-              </h2>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem' }}>
+                <h2>
+                  <Image size={20} />
+                  Screenshots ({screenshots.length})
+                </h2>
+                <div style={{ display: 'flex', gap: '10px' }}>
+                  <button 
+                    onClick={() => setShowProcessMining(true)}
+                    className="btn btn-primary btn-sm"
+                    disabled={processing || screenshots.length === 0}
+                    title="View Workflow Analysis"
+                  >
+                    <TrendingUp size={16} />
+                    View Analysis
+                  </button>
+                  <button 
+                    onClick={handleExtractAll} 
+                    className="btn btn-primary btn-sm"
+                    disabled={processing || !screenshots.some(s => !s.is_processed)}
+                  >
+                    {processing ? 'Processing...' : 'Extract All Data'}
+                  </button>
+                </div>
+              </div>
               <div className="screenshots-grid">
                 {screenshots.map((screenshot) => (
                   <div key={screenshot.id} className="screenshot-card">
+                    <div className="screenshot-image-container">
+                      <AuthenticatedImage 
+                        url={`/screenshots/${screenshot.id}/file`}
+                        alt={`Screenshot ${screenshot.id}`}
+                        className="screenshot-image"
+                        onClick={() => window.open(`${import.meta.env.VITE_API_URL || 'http://localhost:5001/api'}/screenshots/${screenshot.id}/file?token=${localStorage.getItem('token')}`, '_blank')}
+                      />
+                    </div>
                     <div className="screenshot-info">
                       <div className="screenshot-time">
-                        {new Date(screenshot.timestamp).toLocaleTimeString()}
+                        {formatTimeToIST(screenshot.timestamp)}
                       </div>
                       <button
                         onClick={() => downloadScreenshot(screenshot.id)}
@@ -331,7 +404,7 @@ const EmployeeDashboard = () => {
                   <tbody>
                     {activities.map((activity) => (
                       <tr key={activity.id}>
-                        <td>{new Date(activity.timestamp).toLocaleTimeString()}</td>
+                        <td>{formatTimeToIST(activity.timestamp)}</td>
                         <td>
                           <span className={`badge badge-${activity.activity_type === 'website' ? 'primary' : 'secondary'}`}>
                             {activity.activity_type}
@@ -348,6 +421,18 @@ const EmployeeDashboard = () => {
           </>
         )}
       </div>
+
+
+      
+      {/* Process Mining Modal */}
+      {showProcessMining && selectedSession && (
+        <ProcessMiningModal 
+          sessionId={selectedSession.id}
+          onClose={() => setShowProcessMining(false)}
+          apiUrl={import.meta.env.VITE_API_URL || 'http://localhost:5001/api'}
+          token={localStorage.getItem('token')}
+        />
+      )}
     </div>
   );
 };

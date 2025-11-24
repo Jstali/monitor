@@ -14,7 +14,21 @@ def get_my_profile():
     if not employee:
         return jsonify({'error': 'Employee not found'}), 404
     
-    return jsonify(employee.to_dict(include_sessions=True)), 200
+    profile = employee.to_dict(include_sessions=True)
+    
+    # Add manager-specific information
+    if employee.role in ['admin', 'super_admin']:
+        # Count managed employees
+        managed_count = Employee.query.filter_by(manager_id=employee_id).count()
+        profile['managed_employees_count'] = managed_count
+        
+        # Get manager info if this employee has a manager
+        if employee.manager_id:
+            manager = Employee.query.get(employee.manager_id)
+            if manager:
+                profile['manager_name'] = manager.name
+    
+    return jsonify(profile), 200
 
 
 @emp_bp.route('/me', methods=['PUT'])
@@ -47,7 +61,7 @@ def get_employee(emp_id):
     current_employee_id = int(get_jwt_identity())
     current_employee = Employee.query.get(current_employee_id)
     
-    if current_employee.role != 'admin':
+    if current_employee.role not in ['admin', 'super_admin']:
         return jsonify({'error': 'Admin access required'}), 403
     
     employee = Employee.query.get(emp_id)
@@ -68,7 +82,7 @@ def update_employee(emp_id):
     current_employee_id = int(get_jwt_identity())
     current_employee = Employee.query.get(current_employee_id)
     
-    if current_employee.role != 'admin':
+    if current_employee.role not in ['admin', 'super_admin']:
         return jsonify({'error': 'Admin access required'}), 403
     
     employee = Employee.query.get(emp_id)
@@ -92,3 +106,55 @@ def update_employee(emp_id):
     db.session.commit()
     
     return jsonify(employee.to_dict()), 200
+
+
+@emp_bp.route('/<int:emp_id>/assign-manager', methods=['PUT'])
+@jwt_required()
+def assign_manager(emp_id):
+    """Assign employee to a manager (super admin only)"""
+    current_employee_id = int(get_jwt_identity())
+    current_employee = Employee.query.get(current_employee_id)
+    
+    # Only super admins can assign managers
+    if current_employee.role != 'super_admin':
+        return jsonify({'error': 'Super admin access required'}), 403
+    
+    employee = Employee.query.get(emp_id)
+    if not employee:
+        return jsonify({'error': 'Employee not found'}), 404
+    
+    # Can only assign employees in same organization
+    if employee.organization_id != current_employee.organization_id:
+        return jsonify({'error': 'Access denied'}), 403
+    
+    data = request.get_json()
+    manager_id = data.get('manager_id')
+    
+    if manager_id is None:
+        # Unassign manager
+        employee.manager_id = None
+        db.session.commit()
+        return jsonify({
+            'message': 'Manager unassigned',
+            'employee': employee.to_dict()
+        }), 200
+    
+    # Validate manager
+    manager = Employee.query.get(manager_id)
+    if not manager:
+        return jsonify({'error': 'Manager not found'}), 404
+    
+    if manager.role not in ['admin', 'super_admin']:
+        return jsonify({'error': 'Manager must be an admin or super_admin'}), 400
+    
+    if manager.organization_id != employee.organization_id:
+        return jsonify({'error': 'Manager must be in the same organization'}), 400
+    
+    # Assign manager
+    employee.manager_id = manager_id
+    db.session.commit()
+    
+    return jsonify({
+        'message': f'Employee assigned to {manager.name}',
+        'employee': employee.to_dict()
+    }), 200

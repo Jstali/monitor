@@ -1,0 +1,506 @@
+================================================================================
+                    EMPLOYEE MONITORING APPLICATION
+                         COMPLETE WORKFLOW GUIDE
+================================================================================
+
+TABLE OF CONTENTS
+-----------------
+1. System Overview
+2. User Roles & Permissions
+3. Registration & Authentication
+4. Employee Workflow
+5. Manager (Admin) Workflow
+6. Super Admin Workflow
+7. Monitoring Agent Workflow
+8. Data Flow & Architecture
+9. Key Features
+
+================================================================================
+1. SYSTEM OVERVIEW
+================================================================================
+
+The Employee Monitoring Application is a comprehensive productivity tracking
+system that monitors employee activities through screenshots and activity logs.
+It supports a hierarchical organization structure with three user roles.
+
+Technology Stack:
+- Backend: Flask (Python), PostgreSQL, SQLAlchemy
+- Frontend: React, Recharts, Mermaid
+- Monitoring: Python agent with screenshot capture
+- OCR: Mistral AI (Pixtral-12b-2409)
+
+================================================================================
+2. USER ROLES & PERMISSIONS
+================================================================================
+
+SUPER ADMIN
+-----------
+- Full organizational access
+- View ALL employees and managers
+- Assign employees to managers
+- Manage organization settings
+- Cannot view employee logs/screenshots (delegation to managers)
+
+ADMIN (MANAGER)
+---------------
+- View only assigned employees
+- Monitor employee activities, logs, and screenshots
+- View workflow analysis and productivity metrics
+- Extract and analyze screenshot data
+- Cannot assign employees to other managers
+
+EMPLOYEE
+--------
+- View own dashboard
+- Start/stop monitoring sessions
+- View own activity logs and screenshots
+- View own workflow analysis
+- No access to other employees' data
+
+================================================================================
+3. REGISTRATION & AUTHENTICATION
+================================================================================
+
+REGISTRATION FLOW
+-----------------
+1. Navigate to /login
+2. Click "Register" tab
+3. Fill in registration form:
+   - Name
+   - Organization Name (creates new org if doesn't exist)
+   - Email
+   - Password
+   - Role: Employee / Admin (Manager) / Super Admin
+
+4. Submit registration
+5. System creates user account
+6. Redirect to login
+
+FIRST-TIME SETUP
+----------------
+- First user in organization should register as Super Admin
+- Subsequent managers register as Admin (Manager)
+- Employees register as Employee
+- Employees are NOT automatically assigned to managers
+- Super Admin must manually assign employees to managers
+
+LOGIN FLOW
+----------
+1. Enter email and password
+2. System validates credentials
+3. JWT token generated and stored
+4. Redirect based on role:
+   - Super Admin / Admin → Organization Dashboard
+   - Employee → Employee Dashboard
+
+================================================================================
+4. EMPLOYEE WORKFLOW
+================================================================================
+
+STARTING A MONITORING SESSION
+------------------------------
+1. Login to Employee Dashboard
+2. Click "Start Monitoring" button
+3. Monitoring agent begins:
+   - Capturing screenshots every 10 seconds
+   - Logging active application/window
+   - Recording activity timestamps
+4. Session status shows "Active"
+
+DURING MONITORING
+-----------------
+- Screenshots automatically uploaded to server
+- Activity logs recorded in real-time
+- Employee can view:
+  - Current session status
+  - Total sessions count
+  - Total time tracked
+  - Screenshots captured
+
+STOPPING A SESSION
+------------------
+1. Click "Stop Monitoring" button
+2. Agent stops capturing
+3. Session marked as completed
+4. Data available for analysis
+
+VIEWING OWN DATA
+----------------
+1. Session History:
+   - View all past sessions
+   - See start/end times and duration
+   - Click "View" to see session details
+
+2. Activity Logs:
+   - List of all activities
+   - Application names and window titles
+   - Timestamps
+
+3. Screenshots:
+   - Gallery view of captured screenshots
+   - Thumbnails with timestamps
+   - Click to view full size
+
+4. Workflow Analysis:
+   - Click "Extract All Data" to process screenshots with OCR
+   - Click "View Analysis" to see:
+     * Activity Summary with time spent per app
+     * Process Flow Diagram (Mermaid)
+     * Timeline of activities
+
+================================================================================
+5. MANAGER (ADMIN) WORKFLOW
+================================================================================
+
+DASHBOARD OVERVIEW
+------------------
+Upon login, managers see:
+- Manager Profile card (name, email, role)
+- Employee count under management
+- Active employees count
+- Total sessions
+- Active sessions
+- Activity distribution chart
+
+VIEWING ASSIGNED EMPLOYEES
+--------------------------
+1. Employees table shows only assigned employees
+2. For each employee, manager can:
+   - View name, email, status
+   - Click "View" to see employee details
+
+MONITORING EMPLOYEE ACTIVITY
+-----------------------------
+1. Click "View" on an employee
+2. Employee details modal shows:
+   - Employee information
+   - List of monitoring sessions
+   - Click on a session to view:
+     * Activities
+     * Screenshots
+     * Workflow analysis
+
+3. Extract Screenshot Data:
+   - Click "Extract All Data" to process all screenshots
+   - OCR extracts application names, actions, context
+   - Processing happens in parallel for efficiency
+
+4. View Workflow Analysis:
+   - Click "View Analysis"
+   - Activity Summary shows:
+     * Step-by-step workflow
+     * Application used
+     * Action performed
+     * Time spent (e.g., "2m 30s")
+   - Process Flow Diagram visualizes workflow
+   - Mermaid diagram shows activity flow
+
+ANALYZING PRODUCTIVITY
+-----------------------
+- Activity Distribution chart shows time spent per app type
+- Session duration tracking
+- Screenshot timeline
+- Workflow patterns identification
+
+================================================================================
+6. SUPER ADMIN WORKFLOW
+================================================================================
+
+ORGANIZATIONAL OVERVIEW
+-----------------------
+Super Admin dashboard shows:
+- ALL users (employees + managers)
+- Organization-wide statistics
+- Settings management
+
+EMPLOYEE ASSIGNMENT
+-------------------
+1. View employees table
+2. For each employee, see "Manager" column
+3. Use dropdown to assign/reassign manager:
+   - Select from list of all admins/super admins
+   - Or select "Unassigned" to remove assignment
+4. Assignment updates immediately
+5. Manager's employee count updates automatically
+
+MANAGING MANAGERS
+-----------------
+- Managers appear in the employees table with badge
+- Shows "Manager" or "Super Admin" badge
+- Cannot assign managers to other managers
+- Can view manager information
+
+ORGANIZATION SETTINGS
+---------------------
+- Update screenshot interval (default: 10 seconds)
+- Configure organization-wide settings
+- Manage user accounts
+
+VIEWING ALL DATA
+----------------
+- Can view all employees' sessions
+- Can view all screenshots and activities
+- Can generate organization-wide reports
+- Cannot assign employees (delegates to managers)
+
+================================================================================
+7. MONITORING AGENT WORKFLOW
+================================================================================
+
+AGENT SETUP
+-----------
+1. Navigate to /agent directory
+2. Copy .env.example to .env
+3. Configure:
+   API_URL=http://localhost:5001
+   EMPLOYEE_EMAIL=your_email@example.com
+   EMPLOYEE_PASSWORD=your_password
+   SCREENSHOT_INTERVAL=10
+
+AGENT OPERATION
+---------------
+1. Run: python monitor_agent.py
+2. Agent authenticates with backend
+3. Creates new monitoring session
+4. Continuous loop:
+   - Capture screenshot
+   - Detect active window/application
+   - Upload screenshot to server
+   - Log activity
+   - Wait for interval (10s)
+   - Repeat
+
+5. On stop (Ctrl+C):
+   - End monitoring session
+   - Upload remaining data
+   - Clean exit
+
+SCREENSHOT CAPTURE
+------------------
+- Uses platform-specific screenshot libraries
+- Captures entire screen
+- Saves temporarily as PNG
+- Uploads via multipart/form-data
+- Deletes local copy after upload
+
+ACTIVITY LOGGING
+----------------
+- Detects active window title
+- Identifies application name
+- Records timestamp
+- Sends to backend API
+- Categorizes as 'application' or 'website'
+
+================================================================================
+8. DATA FLOW & ARCHITECTURE
+================================================================================
+
+MONITORING FLOW
+---------------
+Employee → Agent → Backend → Database
+   ↓         ↓        ↓         ↓
+Start → Capture → Upload → Store
+Session  Screen   API     PostgreSQL
+
+ANALYSIS FLOW
+-------------
+Manager → Request → Backend → OCR → Process → Display
+   ↓         ↓         ↓       ↓       ↓        ↓
+Click → API Call → Mistral → Parse → Format → Modal
+
+DATABASE SCHEMA
+---------------
+Organizations
+  ├── id, name, created_at
+
+Employees
+  ├── id, email, name, password_hash
+  ├── organization_id (FK → Organizations)
+  ├── manager_id (FK → Employees, self-referential)
+  ├── role (employee/admin/super_admin)
+  └── is_active
+
+MonitoringSessions
+  ├── id, employee_id (FK → Employees)
+  ├── start_time, end_time
+  └── is_active
+
+Activities
+  ├── id, session_id (FK → MonitoringSessions)
+  ├── activity_type, application_name
+  ├── window_title, url
+  └── timestamp, duration_seconds
+
+Screenshots
+  ├── id, session_id (FK → MonitoringSessions)
+  ├── filepath, timestamp
+  ├── is_processed, extracted_text
+  └── extraction_data (JSON)
+
+API ENDPOINTS
+-------------
+Authentication:
+  POST /api/auth/register
+  POST /api/auth/login
+  GET  /api/auth/me
+
+Organizations:
+  GET  /api/organizations/:id
+  GET  /api/organizations/:id/employees
+  PUT  /api/organizations/:id/settings
+
+Employees:
+  GET  /api/employees/me
+  PUT  /api/employees/me
+  GET  /api/employees/:id
+  PUT  /api/employees/:id
+  PUT  /api/employees/:id/assign-manager
+
+Monitoring:
+  POST /api/monitoring/sessions
+  GET  /api/monitoring/sessions
+  PUT  /api/monitoring/sessions/:id/end
+  POST /api/monitoring/activities
+  GET  /api/monitoring/activities
+
+Screenshots:
+  POST /api/screenshots/upload
+  GET  /api/screenshots
+  GET  /api/screenshots/:id
+  POST /api/screenshots/:id/extract
+  POST /api/screenshots/extract/batch
+
+Workflow:
+  GET  /api/workflow/session/:id/diagram?format=json
+  GET  /api/workflow/employee/:id/diagram
+
+================================================================================
+9. KEY FEATURES
+================================================================================
+
+AUTOMATIC SCREENSHOT CAPTURE
+-----------------------------
+- Configurable interval (default: 10s)
+- Automatic upload to server
+- Thumbnail generation
+- Full-size image storage
+
+OCR TEXT EXTRACTION
+-------------------
+- Mistral AI Pixtral-12b-2409 model
+- Extracts: app name, action, context, text content
+- Batch processing for efficiency
+- Parallel processing (ThreadPoolExecutor)
+- Confidence scoring
+
+WORKFLOW ANALYSIS
+-----------------
+- Step-by-step activity breakdown
+- Time spent per application/website
+- Human-readable duration (e.g., "2m 30s", "1h 15m")
+- Mermaid diagram visualization
+- Activity flow representation
+
+MANAGER-EMPLOYEE ASSIGNMENT
+----------------------------
+- Manual assignment by Super Admin
+- Flexible reassignment (project-based)
+- Manager-specific employee filtering
+- Automatic employee count updates
+
+ROLE-BASED ACCESS CONTROL
+--------------------------
+- JWT authentication
+- Role-based route protection
+- API endpoint authorization
+- Frontend route guards
+
+REAL-TIME MONITORING
+--------------------
+- Live session status
+- Active session indicators
+- Real-time activity logging
+- Immediate screenshot upload
+
+PRODUCTIVITY ANALYTICS
+----------------------
+- Activity distribution charts
+- Session duration tracking
+- Application usage statistics
+- Time-based analysis
+
+================================================================================
+USAGE SCENARIOS
+================================================================================
+
+SCENARIO 1: New Organization Setup
+-----------------------------------
+1. First user registers as Super Admin
+2. Super Admin registers managers (Admins)
+3. Employees register with Employee role
+4. Super Admin assigns employees to managers
+5. Employees start monitoring sessions
+6. Managers monitor their assigned employees
+
+SCENARIO 2: Employee Monitoring
+--------------------------------
+1. Employee logs in
+2. Starts monitoring session
+3. Agent captures screenshots and activities
+4. Employee works normally
+5. Stops session at end of day
+6. Manager reviews employee's session data
+
+SCENARIO 3: Workflow Analysis
+------------------------------
+1. Manager selects employee
+2. Views employee's session
+3. Clicks "Extract All Data"
+4. System processes screenshots with OCR
+5. Clicks "View Analysis"
+6. Reviews activity summary with time spent
+7. Analyzes productivity patterns
+
+SCENARIO 4: Employee Reassignment
+----------------------------------
+1. Employee completes Project A under Manager A
+2. Employee moves to Project B under Manager B
+3. Super Admin logs in
+4. Finds employee in employees table
+5. Changes manager dropdown from Manager A to Manager B
+6. Employee now visible to Manager B only
+7. Manager B can monitor employee's new project work
+
+================================================================================
+TROUBLESHOOTING
+================================================================================
+
+Issue: "No workflow data available"
+Solution: 
+  - Ensure screenshots are extracted first
+  - Click "Extract All Data" before "View Analysis"
+  - Check that session has screenshots
+
+Issue: Employee not visible to manager
+Solution:
+  - Check employee assignment in Super Admin dashboard
+  - Ensure employee is assigned to correct manager
+  - Verify manager is logged in with correct account
+
+Issue: Agent not uploading screenshots
+Solution:
+  - Check API_URL in .env file
+  - Verify credentials are correct
+  - Ensure backend is running
+  - Check network connectivity
+
+Issue: OCR extraction failing
+Solution:
+  - Verify MISTRAL_API_KEY is set
+  - Check OCR_ENABLED=true in backend config
+  - Review backend logs for errors
+  - Ensure screenshots are valid images
+
+================================================================================
+END OF WORKFLOW DOCUMENTATION
+================================================================================

@@ -52,7 +52,7 @@ class WorkflowDiagramGenerator:
         events.sort(key=lambda x: x['timestamp'])
         
         # Generate Mermaid syntax
-        mermaid = ["graph LR"]
+        mermaid = ["graph TD"]
         mermaid.append("    %% Styles")
         mermaid.append("    classDef appNode fill:#e1f5fe,stroke:#01579b,stroke-width:2px,rx:5,ry:5;")
         mermaid.append("    classDef webNode fill:#f3e5f5,stroke:#4a148c,stroke-width:2px,rx:5,ry:5;")
@@ -151,35 +151,93 @@ class WorkflowDiagramGenerator:
         
         return summary
     
+    def _format_duration(self, seconds):
+        """Format duration in seconds to human-readable format"""
+        if seconds < 60:
+            return f"{int(seconds)}s"
+        elif seconds < 3600:
+            minutes = int(seconds // 60)
+            secs = int(seconds % 60)
+            return f"{minutes}m {secs}s" if secs > 0 else f"{minutes}m"
+        else:
+            hours = int(seconds // 3600)
+            minutes = int((seconds % 3600) // 60)
+            return f"{hours}h {minutes}m" if minutes > 0 else f"{hours}h"
+    
     def generate_screenshot_workflow(self):
-        """Generate workflow from screenshot extraction data"""
+        """Generate a detailed workflow from screenshots with OCR data"""
         
-        workflow_steps = []
+        workflow_items = []
+        step_counter = 1
         
-        for screenshot in sorted(self.screenshots, key=lambda x: x['timestamp']):
-            if screenshot.get('is_processed') and screenshot.get('extraction_data'):
-                step = {
-                    'timestamp': screenshot['timestamp'],
-                    'extracted_text': screenshot.get('extracted_text', ''),
-                    'data': screenshot.get('extraction_data', {})
-                }
-                workflow_steps.append(step)
+        # Sort screenshots by timestamp
+        sorted_screenshots = sorted(self.screenshots, key=lambda x: x.get('timestamp', ''))
+        
+        for i, shot in enumerate(sorted_screenshots):
+            if not shot.get('is_processed') or not shot.get('extraction_data'):
+                continue
+                
+            data = shot['extraction_data']
+            if not isinstance(data, dict):
+                continue
+            
+            # Calculate time spent (estimate based on screenshot interval)
+            time_spent = "~10s"  # Default screenshot interval
+            if i + 1 < len(sorted_screenshots):
+                next_shot = sorted_screenshots[i + 1]
+                if 'timestamp' in shot and 'timestamp' in next_shot:
+                    try:
+                        current_time = datetime.fromisoformat(shot['timestamp'].replace('Z', '+00:00'))
+                        next_time = datetime.fromisoformat(next_shot['timestamp'].replace('Z', '+00:00'))
+                        duration = (next_time - current_time).total_seconds()
+                        time_spent = self._format_duration(duration)
+                    except Exception as e:
+                        pass
+            
+            item = {
+                'step': step_counter,
+                'app': data.get('app', 'Unknown'),
+                'action': data.get('action', ''),
+                'context': data.get('context', ''),
+                'time_spent': time_spent,
+                'timestamp': shot.get('timestamp', '')
+            }
+            workflow_items.append(item)
+            step_counter += 1
         
         return {
             'total_screenshots': len(self.screenshots),
             'processed_screenshots': len([s for s in self.screenshots if s.get('is_processed')]),
-            'workflow_steps': workflow_steps
+            'workflow_steps': workflow_items
         }
     
     def export_to_json(self, filepath):
         """Export all diagrams to JSON file"""
         
+        # Generate JSON output with all diagrams
+        screenshot_workflow_data = self.generate_screenshot_workflow()
+        
+        # Create summary text from workflow items
+        summary_text = []
+        for item in screenshot_workflow_data.get('workflow_steps', []):
+            text = f"{item['step']}. {item['app']}"
+            if item.get('action'):
+                text += f" → {item['action']}"
+            if item.get('context'):
+                text += f" ({item['context']}"
+                if item.get('time_spent'):
+                    text += f" - Time spent: {item['time_spent']}"
+                text += ")"
+            elif item.get('time_spent'):
+                text += f" (Time spent: {item['time_spent']})"
+            summary_text.append(text)
+        
         data = {
             'generated_at': datetime.utcnow().isoformat(),
             'mermaid_diagram': self.generate_mermaid_diagram(),
             'timeline': self.generate_timeline_diagram(),
-            'summary': self.generate_activity_summary(),
-            'screenshot_workflow': self.generate_screenshot_workflow()
+            'activity_summary': self.generate_activity_summary(), # Renamed from 'summary' to 'activity_summary' for clarity
+            'screenshot_workflow': '\n'.join(summary_text) if summary_text else 'No workflow data available'
         }
         
         with open(filepath, 'w') as f:

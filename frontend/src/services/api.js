@@ -19,6 +19,21 @@ api.interceptors.request.use((config) => {
   return config;
 });
 
+// Handle 401 responses
+api.interceptors.response.use(
+  (response) => response,
+  (error) => {
+    if (error.response && error.response.status === 401) {
+      // Clear token and redirect to login if unauthorized
+      localStorage.removeItem('token');
+      if (window.location.pathname !== '/login') {
+        window.location.href = '/login';
+      }
+    }
+    return Promise.reject(error);
+  }
+);
+
 // Auth API
 export const authAPI = {
   login: (email, password) => api.post('/auth/login', { email, password }),
@@ -40,6 +55,7 @@ export const employeeAPI = {
   updateProfile: (data) => api.put('/employees/me', data),
   getById: (id) => api.get(`/employees/${id}`),
   update: (id, data) => api.put(`/employees/${id}`, data),
+  assignManager: (employeeId, managerId) => api.put(`/employees/${employeeId}/assign-manager`, { manager_id: managerId }),
 };
 
 // Monitoring API
@@ -63,7 +79,8 @@ export const screenshotAPI = {
   },
   getById: (id) => api.get(`/screenshots/${id}`),
   getFile: (id) => api.get(`/screenshots/${id}/file`, { responseType: 'blob' }),
-  extract: (id) => api.post(`/screenshots/${id}/extract`),
+  extractData: (id) => api.post(`/screenshots/${id}/extract`),
+  extractBatch: (screenshot_ids) => api.post('/screenshots/extract/batch', { screenshot_ids }),
   getSessionScreenshots: (sessionId) => api.get(`/screenshots/session/${sessionId}`),
 };
 

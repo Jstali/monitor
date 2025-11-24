@@ -8,20 +8,17 @@ import './index.css';
 
 // Protected Route Component
 const ProtectedRoute = ({ children, adminOnly = false }) => {
-  const { isAuthenticated, isAdmin, loading } = useAuth();
-
-  if (loading) {
-    return <div className="loading">Loading...</div>;
+  const { user } = useAuth();
+  
+  if (!user) {
+    return <Navigate to="/login" />;
   }
-
-  if (!isAuthenticated) {
-    return <Navigate to="/login" replace />;
+  
+  // Super admin and admin can access organization dashboard
+  if (adminOnly && user.role !== 'admin' && user.role !== 'super_admin') {
+    return <Navigate to="/employee" />;
   }
-
-  if (adminOnly && !isAdmin) {
-    return <Navigate to="/employee" replace />;
-  }
-
+  
   return children;
 };
 

@@ -4,14 +4,17 @@ from models import db, Employee, MonitoringSession, Screenshot, Activity
 from werkzeug.utils import secure_filename
 import os
 import requests
+import logging
 from datetime import datetime, timedelta
+
+logger = logging.getLogger(__name__)
 
 screenshot_bp = Blueprint('screenshots', __name__)
 
 @screenshot_bp.route('/upload', methods=['POST'])
 @jwt_required()
 def upload_screenshot():
-    """Upload a screenshot"""
+    """Upload a screenshot with dynamic folder routing"""
     employee_id = int(get_jwt_identity())
     
     # Get active session
@@ -31,21 +34,37 @@ def upload_screenshot():
     if file.filename == '':
         return jsonify({'error': 'No file selected'}), 400
     
+    # Get folder_name and activity_name from request (sent by agent based on allowlist)
+    folder_name = request.form.get('folder_name')
+    activity_name = request.form.get('activity_name', folder_name)
+    
+    # If no folder specified, skip (not in allowlist)
+    if not folder_name:
+        return jsonify({
+            'message': 'Screenshot not saved - not in allowlist',
+            'allowlist_filtered': True
+        }), 200
+    
     # Generate unique filename
     timestamp = datetime.utcnow().strftime('%Y%m%d_%H%M%S')
     filename = secure_filename(f"screenshot_{employee_id}_{active_session.id}_{timestamp}.png")
     
-    # Save file
-    filepath = os.path.join(current_app.config['SCREENSHOT_FOLDER'], filename)
+    # Create dynamic folder path
+    folder_path = os.path.join(current_app.config['SCREENSHOT_FOLDER'], folder_name)
+    os.makedirs(folder_path, exist_ok=True)
+    
+    filepath = os.path.join(folder_path, filename)
     file.save(filepath)
     
     file_size = os.path.getsize(filepath)
     
-    # Create screenshot record
+    # Create screenshot record with folder and activity info
     screenshot = Screenshot(
         session_id=active_session.id,
         file_path=filepath,
-        file_size=file_size
+        file_size=file_size,
+        folder_name=folder_name,
+        activity_name=activity_name
     )
     
     db.session.add(screenshot)
@@ -167,15 +186,200 @@ def extract_screenshot_data(screenshot_id):
         return jsonify({'error': 'Screenshot file not found'}), 404
     
     # Call extraction API
-    api_key = current_app.config.get('EXTRACTION_API_KEY')
-    api_url = current_app.config.get('EXTRACTION_API_URL')
+    ocr_enabled = current_app.config.get('OCR_ENABLED', True)
+    api_key = current_app.config.get('MISTRAL_API_KEY')
+    api_url = current_app.config.get('MISTRAL_API_URL')
     
-    # MOCK IMPLEMENTATION if URL is placeholder
-    if not api_url or 'api.example.com' in api_url:
-        # Use real activity data instead of fake cycling data
-        import time
-        time.sleep(0.5)
+    # Use Mistral OCR if enabled and configured
+    if ocr_enabled and api_key:
+        try:
+            from ocr_service import create_ocr_service
+            
+            logger.info(f"Using Mistral OCR for screenshot {screenshot_id}")
+            
+            # Create OCR service
+            ocr_service = create_ocr_service(api_key, api_url)
+            
+            # Extract text and data
+            extracted_text, extraction_data = ocr_service.extract_text_from_image(screenshot.file_path)
+            
+            # Store extraction results
+            screenshot.extracted_text = extracted_text
+            screenshot.extraction_data = extraction_data
+            screenshot.is_processed = True
+            
+            db.session.commit()
+            
+            return jsonify({
+                'message': 'Screenshot data extracted successfully using Mistral OCR',
+                'screenshot': screenshot.to_dict()
+            }), 200
+            
+        except Exception as e:
+            logger.error(f"Mistral OCR failed: {str(e)}, falling back to activity data")
+            # Fall through to fallback mechanism
+    
+    # FALLBACK: Use activity data if OCR is disabled or fails
+    import time
+    time.sleep(0.5)
+    
+    # Get the screenshot's session and find nearby activities
+    session_id = screenshot.session_id
+    screenshot_time = screenshot.timestamp
+    
+    # Find activities within 30 seconds of this screenshot
+    time_window_start = screenshot_time - timedelta(seconds=30)
+    time_window_end = screenshot_time + timedelta(seconds=30)
+    
+    nearby_activities = Activity.query.filter(
+        Activity.session_id == session_id,
+        Activity.timestamp >= time_window_start,
+        Activity.timestamp <= time_window_end
+    ).order_by(Activity.timestamp.desc()).first()
+    
+    if nearby_activities:
+        # Use real activity data
+        app = nearby_activities.application_name or 'Unknown'
         
+        # Determine action based on activity type
+        if nearby_activities.activity_type == 'website':
+            action = 'Browsing'
+            context = nearby_activities.url or nearby_activities.window_title or 'Web'
+        else:
+            action = 'Working'
+            context = nearby_activities.window_title or 'Application'
+        
+        mock_data = {
+            'app': app,
+            'action': action,
+            'context': context[:50] if context else '',
+            'details': f"User was {action.lower()} in {app}",
+            'confidence': 0.90,
+            'source': 'activity_log_fallback'
+        }
+        mock_text = f"App: {app}\\nAction: {action}\\nContext: {context}"
+    else:
+        # Fallback to generic data if no activities found
+        mock_data = {
+            'app': 'Unknown Application',
+            'action': 'Active',
+            'context': 'No activity data',
+            'details': 'Screenshot captured but no activity logged',
+            'confidence': 0.50,
+            'source': 'fallback'
+        }
+        mock_text = "No activity data available for this screenshot"
+    
+    screenshot.extracted_text = mock_text
+    screenshot.extraction_data = mock_data
+    screenshot.is_processed = True
+    
+    db.session.commit()
+    
+    return jsonify({
+        'message': 'Screenshot data extracted using fallback method',
+        'screenshot': screenshot.to_dict()
+    }), 200
+
+
+@screenshot_bp.route('/extract/batch', methods=['POST'])
+@jwt_required()
+def extract_batch():
+    """Batch extract data from multiple screenshots"""
+    employee_id = int(get_jwt_identity())
+    employee = Employee.query.get(employee_id)
+    
+    data = request.get_json()
+    if not data or 'screenshot_ids' not in data:
+        return jsonify({'error': 'No screenshot_ids provided'}), 400
+        
+    screenshot_ids = data['screenshot_ids']
+    if not isinstance(screenshot_ids, list):
+        return jsonify({'error': 'screenshot_ids must be a list'}), 400
+        
+    # Limit batch size
+    if len(screenshot_ids) > 50:
+        return jsonify({'error': 'Batch size limit exceeded (max 50)'}), 400
+        
+    # Get screenshots
+    screenshots = Screenshot.query.filter(Screenshot.id.in_(screenshot_ids)).all()
+    
+    # Filter accessible screenshots
+    valid_screenshots = []
+    for s in screenshots:
+        session = MonitoringSession.query.get(s.session_id)
+        
+        # Check access
+        has_access = False
+        if employee.role == 'admin':
+            session_employee = Employee.query.get(session.employee_id)
+            if session_employee.organization_id == employee.organization_id:
+                has_access = True
+        elif session.employee_id == employee_id:
+            has_access = True
+            
+        if has_access and not s.is_processed and os.path.exists(s.file_path):
+            valid_screenshots.append(s)
+            
+    if not valid_screenshots:
+        return jsonify({'message': 'No valid unprocessed screenshots found'}), 200
+        
+    # Prepare for extraction
+    ocr_enabled = current_app.config.get('OCR_ENABLED', True)
+    api_key = current_app.config.get('MISTRAL_API_KEY')
+    api_url = current_app.config.get('MISTRAL_API_URL')
+    
+    processed_count = 0
+    failed_count = 0
+    
+    # Try OCR first if enabled
+    if ocr_enabled and api_key:
+        try:
+            from ocr_service import create_ocr_service
+            ocr_service = create_ocr_service(api_key, api_url)
+            
+            # Map paths to screenshot objects
+            path_to_screenshot = {s.file_path: s for s in valid_screenshots}
+            paths = list(path_to_screenshot.keys())
+            
+            # Run parallel extraction
+            logger.info(f"Starting batch extraction for {len(paths)} screenshots")
+            results = ocr_service.extract_batch_parallel(paths, max_workers=5)
+            
+            # Process results
+            for path, (text, data) in results.items():
+                screenshot = path_to_screenshot.get(path)
+                if screenshot and text:
+                    screenshot.extracted_text = text
+                    screenshot.extraction_data = data
+                    screenshot.is_processed = True
+                    processed_count += 1
+                else:
+                    failed_count += 1
+                    
+            db.session.commit()
+            
+            # If some failed, fall back for those
+            if failed_count > 0:
+                logger.warning(f"OCR failed for {failed_count} screenshots, using fallback")
+            else:
+                return jsonify({
+                    'message': f'Batch processing completed. Success: {processed_count}, Failed: {failed_count}',
+                    'processed_count': processed_count,
+                    'failed_count': failed_count
+                }), 200
+            
+        except Exception as e:
+            logger.error(f"Batch extraction failed: {str(e)}, falling back to activity data")
+            # Fall through to fallback mechanism
+    
+    # FALLBACK: Use activity data for all unprocessed screenshots
+    logger.info(f"Using fallback extraction for {len(valid_screenshots)} screenshots")
+    
+    for screenshot in valid_screenshots:
+        if screenshot.is_processed:
+            continue  # Skip already processed ones
+            
         # Get the screenshot's session and find nearby activities
         session_id = screenshot.session_id
         screenshot_time = screenshot.timestamp
@@ -208,8 +412,7 @@ def extract_screenshot_data(screenshot_id):
                 'context': context[:50] if context else '',
                 'details': f"User was {action.lower()} in {app}",
                 'confidence': 0.90,
-                'mock': True,
-                'source': 'activity_log'
+                'source': 'activity_log_fallback'
             }
             mock_text = f"App: {app}\\nAction: {action}\\nContext: {context}"
         else:
@@ -220,7 +423,6 @@ def extract_screenshot_data(screenshot_id):
                 'context': 'No activity data',
                 'details': 'Screenshot captured but no activity logged',
                 'confidence': 0.50,
-                'mock': True,
                 'source': 'fallback'
             }
             mock_text = "No activity data available for this screenshot"
@@ -228,43 +430,15 @@ def extract_screenshot_data(screenshot_id):
         screenshot.extracted_text = mock_text
         screenshot.extraction_data = mock_data
         screenshot.is_processed = True
-        
-        db.session.commit()
-        
-        return jsonify({
-            'message': 'Screenshot data extracted successfully (Mock)',
-            'screenshot': screenshot.to_dict()
-        }), 200
-
-    if not api_key or not api_url:
-        return jsonify({'error': 'Extraction API not configured'}), 500
+        processed_count += 1
     
-    try:
-        with open(screenshot.file_path, 'rb') as f:
-            files = {'file': f}
-            headers = {'Authorization': f'Bearer {api_key}'}
-            
-            response = requests.post(api_url, files=files, headers=headers, timeout=30)
-            response.raise_for_status()
-            
-            extraction_data = response.json()
-            
-            # Store extraction results
-            screenshot.extracted_text = extraction_data.get('text', '')
-            screenshot.extraction_data = extraction_data
-            screenshot.is_processed = True
-            
-            db.session.commit()
-            
-            return jsonify({
-                'message': 'Screenshot data extracted successfully',
-                'screenshot': screenshot.to_dict()
-            }), 200
-            
-    except requests.exceptions.RequestException as e:
-        return jsonify({'error': f'Extraction API error: {str(e)}'}), 500
-    except Exception as e:
-        return jsonify({'error': f'Extraction failed: {str(e)}'}), 500
+    db.session.commit()
+    
+    return jsonify({
+        'message': f'Batch processing completed using fallback. Success: {processed_count}',
+        'processed_count': processed_count,
+        'failed_count': 0
+    }), 200
 
 
 @screenshot_bp.route('/session/<int:session_id>', methods=['GET'])

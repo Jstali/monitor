@@ -1,11 +1,14 @@
 import React, { useState, useEffect } from 'react';
 import { useAuth } from '../context/AuthContext';
-import { organizationAPI, monitoringAPI, screenshotAPI, workflowAPI } from '../services/api';
-import { Users, Settings, Activity, Image, LogOut, Download, Eye, FileText, Play, Layers } from 'lucide-react';
+import { organizationAPI, employeeAPI, monitoringAPI, screenshotAPI, workflowAPI } from '../services/api';
+import { Users, Settings, Activity, Image, LogOut, Download, Eye, FileText, Play, Layers, TrendingUp } from 'lucide-react';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, PieChart, Pie, Cell } from 'recharts';
 import './OrganizationDashboard.css';
 import AuthenticatedImage from '../components/AuthenticatedImage';
+import { formatToIST, formatTimeToIST } from '../utils/dateUtils';
 import WorkflowModal from '../components/WorkflowModal';
+import MonitoringConfigManager from '../components/MonitoringConfigManager';
+import ProcessMiningModal from '../components/ProcessMiningModal';
 
 const OrganizationDashboard = () => {
   const { user, logout } = useAuth();
@@ -21,9 +24,12 @@ const OrganizationDashboard = () => {
   const [processing, setProcessing] = useState(false);
   const [showWorkflowModal, setShowWorkflowModal] = useState(false);
   const [workflowData, setWorkflowData] = useState(null);
+  const [managerProfile, setManagerProfile] = useState(null);
+  const [showProcessMining, setShowProcessMining] = useState(false);
 
   useEffect(() => {
     loadData();
+    loadManagerProfile();
   }, []);
 
   const loadData = async () => {
@@ -41,6 +47,15 @@ const OrganizationDashboard = () => {
       console.error('Failed to load data:', error);
     } finally {
       setLoading(false);
+    }
+  };
+
+  const loadManagerProfile = async () => {
+    try {
+      const response = await employeeAPI.getProfile();
+      setManagerProfile(response.data);
+    } catch (error) {
+      console.error('Failed to load manager profile:', error);
     }
   };
 
@@ -62,6 +77,20 @@ const OrganizationDashboard = () => {
       setSessions(sessRes.data);
     } catch (error) {
       console.error('Failed to load employee sessions:', error);
+    }
+  };
+
+  const handleAssignManager = async (employeeId, managerId) => {
+    try {
+      await employeeAPI.assignManager(employeeId, managerId || null);
+      // Refresh employees list
+      const empRes = await organizationAPI.getEmployees(user.organization_id);
+      setEmployees(empRes.data);
+      // Refresh manager profile
+      await loadManagerProfile();
+    } catch (error) {
+      console.error('Failed to assign manager:', error);
+      alert('Failed to assign manager. Please try again.');
     }
   };
 
@@ -97,7 +126,7 @@ const OrganizationDashboard = () => {
 
   const extractScreenshotData = async (screenshotId) => {
     try {
-      await screenshotAPI.extract(screenshotId);
+      await screenshotAPI.extractData(screenshotId);
       // Refresh screenshots
       const res = await screenshotAPI.getSessionScreenshots(selectedSession.id);
       setScreenshots(res.data);
@@ -120,39 +149,82 @@ const OrganizationDashboard = () => {
 
     setProcessing(true);
     try {
-      // Step 1: Extract data from all screenshots
+      // Validate that we have screenshots
+      if (!screenshots || screenshots.length === 0) {
+        alert('No screenshots available. Please select a session with screenshots.');
+        setProcessing(false);
+        return;
+      }
+
+      // Get all unprocessed screenshot IDs
       const unprocessed = screenshots.filter(s => !s.is_processed);
-      let itemsToProcess = unprocessed.length > 0 ? unprocessed : screenshots;
       
-      console.log(`Extracting data from ${itemsToProcess.length} screenshots...`);
+      if (unprocessed.length === 0) {
+        alert('All screenshots are already processed!');
+        setProcessing(false);
+        return;
+      }
       
-      let processedCount = 0;
-      for (const screenshot of itemsToProcess) {
+      const allScreenshotIds = unprocessed.map(s => s.id);
+      
+      console.log(`Extracting data from ${allScreenshotIds.length} screenshots...`);
+      
+      // Validate screenshot IDs
+      if (!allScreenshotIds || allScreenshotIds.length === 0) {
+        alert('No valid screenshot IDs found.');
+        setProcessing(false);
+        return;
+      }
+      
+      // Process in batches of 50 (backend limit)
+      const BATCH_SIZE = 50;
+      const batches = [];
+      for (let i = 0; i < allScreenshotIds.length; i += BATCH_SIZE) {
+        batches.push(allScreenshotIds.slice(i, i + BATCH_SIZE));
+      }
+      
+      console.log(`Processing ${batches.length} batch(es) of up to ${BATCH_SIZE} screenshots each...`);
+      
+      let totalProcessed = 0;
+      let totalFailed = 0;
+      
+      // Process each batch
+      for (let i = 0; i < batches.length; i++) {
+        const batch = batches[i];
+        console.log(`Processing batch ${i + 1}/${batches.length} (${batch.length} screenshots)...`);
+        
         try {
-          await screenshotAPI.extract(screenshot.id);
-          processedCount++;
-        } catch (err) {
-          console.error(`Failed to extract ${screenshot.id}:`, err);
+          const response = await screenshotAPI.extractBatch(batch);
+          console.log(`Batch ${i + 1} response:`, response.data);
+          
+          totalProcessed += response.data.processed_count || batch.length;
+          totalFailed += response.data.failed_count || 0;
+        } catch (batchError) {
+          console.error(`Batch ${i + 1} failed:`, batchError);
+          totalFailed += batch.length;
         }
       }
       
-      console.log(`Extraction complete. Processed: ${processedCount}`);
-      
-      // Step 2: Fetch workflow data
+      console.log(`Extraction complete. Processed: ${totalProcessed}, Failed: ${totalFailed}`);
       console.log('Fetching workflow data...');
+      
+      // Fetch workflow data in JSON format
       const workflowRes = await workflowAPI.getSessionDiagram(selectedSession.id, 'json');
       setWorkflowData(workflowRes.data);
       
-      // Step 3: Show modal
+      // Show modal
       setShowWorkflowModal(true);
       
       // Refresh session data in background
       if (selectedSession) {
         await viewSessionDetails(selectedSession);
       }
+      
+      alert(`Successfully processed ${totalProcessed} screenshots!${totalFailed > 0 ? ` (${totalFailed} failed)` : ''}`);
     } catch (error) {
       console.error('Extraction or workflow generation failed:', error);
-      alert('Failed to generate workflow. Check console for details.');
+      console.error('Error details:', error.response?.data);
+      alert(`Failed to extract data: ${error.response?.data?.error || error.message}`);
     } finally {
       setProcessing(false);
     }
@@ -175,6 +247,23 @@ const OrganizationDashboard = () => {
     } catch (error) {
       console.error('Failed to generate workflow:', error);
       alert('Failed to generate workflow');
+    }
+  };
+
+  const handleViewAnalysis = async () => {
+    if (!selectedSession) return;
+    
+    try {
+      setProcessing(true);
+      // Fetch the workflow data in JSON format
+      const response = await workflowAPI.getSessionDiagram(selectedSession.id, 'json');
+      setWorkflowData(response.data);
+      setShowWorkflowModal(true);
+    } catch (error) {
+      console.error('Failed to load analysis:', error);
+      alert('Failed to load analysis. Please try extracting data first.');
+    } finally {
+      setProcessing(false);
     }
   };
 
@@ -272,6 +361,42 @@ const OrganizationDashboard = () => {
           </div>
         </div>
 
+        {/* Manager Profile */}
+        {managerProfile && ['admin', 'super_admin'].includes(managerProfile.role) && (
+          <div className="card">
+            <h2>
+              <Users size={20} />
+              Manager Profile
+            </h2>
+            <div className="profile-info" style={{ padding: '1rem' }}>
+              <div style={{ marginBottom: '0.5rem' }}>
+                <strong>Name:</strong> {managerProfile.name}
+              </div>
+              <div style={{ marginBottom: '0.5rem' }}>
+                <strong>Email:</strong> {managerProfile.email}
+              </div>
+              <div style={{ marginBottom: '0.5rem' }}>
+                <strong>Role:</strong> {managerProfile.role === 'super_admin' ? 'Super Admin' : 'Manager'}
+              </div>
+              {managerProfile.managed_employees_count !== undefined && (
+                <div>
+                  <strong>Employees Under Management:</strong> {managerProfile.managed_employees_count}
+                </div>
+              )}
+            </div>
+          </div>
+        )}
+
+        {/* Monitoring Configuration */}
+        {managerProfile && ['admin', 'super_admin'].includes(managerProfile.role) && (
+          <div className="card">
+            <MonitoringConfigManager 
+              apiUrl={import.meta.env.VITE_API_URL || 'http://localhost:5001/api'}
+              token={localStorage.getItem('token')}
+            />
+          </div>
+        )}
+
         {/* Employees List */}
         <div className="card">
           <h2>
@@ -284,26 +409,47 @@ const OrganizationDashboard = () => {
                 <tr>
                   <th>Name</th>
                   <th>Email</th>
-                  <th>Role</th>
                   <th>Status</th>
+                  {managerProfile?.role === 'super_admin' && <th>Manager</th>}
                   <th>Actions</th>
                 </tr>
               </thead>
               <tbody>
-                {employees.map((emp) => (
+                {/* Super admin sees ALL users (employees + managers), Admin sees only their assigned employees */}
+                {(managerProfile?.role === 'super_admin' 
+                  ? employees 
+                  : employees.filter(emp => emp.role === 'employee')
+                ).map((emp) => (
                   <tr key={emp.id}>
                     <td>{emp.name}</td>
                     <td>{emp.email}</td>
-                    <td>
-                      <span className={`badge badge-${emp.role === 'admin' ? 'primary' : 'secondary'}`}>
-                        {emp.role}
-                      </span>
-                    </td>
                     <td>
                       <span className={`badge badge-${emp.is_active ? 'success' : 'danger'}`}>
                         {emp.is_active ? 'Active' : 'Inactive'}
                       </span>
                     </td>
+                    {managerProfile?.role === 'super_admin' && (
+                      <td>
+                        {/* Only show manager dropdown for employees, not for admins/super_admins */}
+                        {emp.role === 'employee' ? (
+                          <select
+                            value={emp.manager_id || ''}
+                            onChange={(e) => handleAssignManager(emp.id, e.target.value)}
+                            className="input"
+                            style={{ padding: '0.25rem', fontSize: '0.875rem' }}
+                          >
+                            <option value="">Unassigned</option>
+                            {employees.filter(e => ['admin', 'super_admin'].includes(e.role)).map(manager => (
+                              <option key={manager.id} value={manager.id}>
+                                {manager.name}
+                              </option>
+                            ))}
+                          </select>
+                        ) : (
+                          <span className="badge badge-primary">{emp.role === 'super_admin' ? 'Super Admin' : 'Manager'}</span>
+                        )}
+                      </td>
+                    )}
                     <td>
                       <button
                         onClick={() => viewEmployeeDetails(emp)}
@@ -338,8 +484,8 @@ const OrganizationDashboard = () => {
                 <tbody>
                   {sessions.map((session) => (
                     <tr key={session.id}>
-                      <td>{new Date(session.start_time).toLocaleString()}</td>
-                      <td>{session.end_time ? new Date(session.end_time).toLocaleString() : '-'}</td>
+                      <td>{formatToIST(session.start_time)}</td>
+                      <td>{formatToIST(session.end_time)}</td>
                       <td>{session.duration_seconds ? `${Math.round(session.duration_seconds / 60)} min` : '-'}</td>
                       <td>
                         <span className={`badge badge-${session.is_active ? 'success' : 'danger'}`}>
@@ -366,22 +512,10 @@ const OrganizationDashboard = () => {
         {/* Session Details */}
         {selectedSession && (
           <>
-            {/* Activity Chart */}
+            {/* Activity Distribution */}
             {activities.length > 0 && (
               <div className="card">
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem' }}>
-                  <h2>Activity Distribution</h2>
-                  <div style={{ display: 'flex', gap: '10px' }}>
-                    <button 
-                      onClick={() => handleGenerateWorkflow('html')} 
-                      className="btn btn-secondary btn-sm"
-                      title="Generate Workflow Diagram"
-                    >
-                      <Layers size={16} />
-                      Generate Workflow
-                    </button>
-                  </div>
-                </div>
+                <h2>Activity Distribution</h2>
                 <ResponsiveContainer width="100%" height={300}>
                   <PieChart>
                     <Pie
@@ -413,9 +547,27 @@ const OrganizationDashboard = () => {
                 </h2>
                 <div style={{ display: 'flex', gap: '10px' }}>
                   <button 
-                    onClick={handleExtractAll} 
+                    onClick={() => setShowProcessMining(true)}
                     className="btn btn-primary btn-sm"
-                    disabled={processing || !screenshots.some(s => !s.is_processed)}
+                    disabled={processing || screenshots.length === 0}
+                    title="View Process Mining Diagram"
+                  >
+                    <TrendingUp size={16} />
+                    Process Mining
+                  </button>
+                  <button 
+                    onClick={handleViewAnalysis}
+                    className="btn btn-secondary btn-sm"
+                    disabled={processing || screenshots.length === 0}
+                    title="View Workflow Analysis"
+                  >
+                    <Layers size={16} />
+                    View Analysis
+                  </button>
+                  <button 
+                    onClick={handleExtractAll} 
+                    className="btn btn-secondary btn-sm"
+                    disabled={processing || !screenshots || screenshots.length === 0 || !screenshots.some(s => !s.is_processed)}
                   >
                     {processing ? 'Processing...' : 'Extract All Data'}
                   </button>
@@ -511,6 +663,16 @@ const OrganizationDashboard = () => {
         onClose={() => setShowWorkflowModal(false)}
         workflowData={workflowData}
       />
+      
+      {/* Process Mining Modal */}
+      {showProcessMining && selectedSession && (
+        <ProcessMiningModal 
+          sessionId={selectedSession.id}
+          onClose={() => setShowProcessMining(false)}
+          apiUrl={import.meta.env.VITE_API_URL || 'http://localhost:5001/api'}
+          token={localStorage.getItem('token')}
+        />
+      )}
     </div>
   );
 };

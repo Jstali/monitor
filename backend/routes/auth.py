@@ -24,20 +24,30 @@ def register():
         db.session.add(organization)
         db.session.flush()
     
+    # Get requested role (employee, admin, or super_admin)
+    role = data.get('role', 'employee')
+    
+    # Validate role
+    if role not in ['employee', 'admin', 'super_admin']:
+        role = 'employee'
+    
     # Create employee
     employee = Employee(
         email=data['email'],
-        name=data.get('name', data['email'].split('@')[0]),
-        role=data.get('role', 'employee'),
-        organization_id=organization.id
+        name=data['name'],
+        organization_id=organization.id,
+        role=role
     )
     employee.set_password(data['password'])
+    
+    # Note: Manager assignment is done manually by super admin
+    # This allows flexibility for project-based reassignments
     
     db.session.add(employee)
     db.session.commit()
     
     return jsonify({
-        'message': 'Employee registered successfully',
+        'message': f'Registered successfully as {role}.',
         'employee': employee.to_dict()
     }), 201
 

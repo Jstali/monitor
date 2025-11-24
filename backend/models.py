@@ -34,13 +34,15 @@ class Employee(db.Model):
     email = db.Column(db.String(200), unique=True, nullable=False)
     name = db.Column(db.String(200), nullable=False)
     password_hash = db.Column(db.String(255), nullable=False)
-    role = db.Column(db.String(50), default='employee')  # 'admin' or 'employee'
+    role = db.Column(db.String(50), default='employee')  # 'super_admin', 'admin' (manager), or 'employee'
     organization_id = db.Column(db.Integer, db.ForeignKey('organizations.id'), nullable=False)
+    manager_id = db.Column(db.Integer, db.ForeignKey('employees.id'), nullable=True)  # Manager assignment
     is_active = db.Column(db.Boolean, default=True)
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
     
     # Relationships
     sessions = db.relationship('MonitoringSession', backref='employee', lazy=True, cascade='all, delete-orphan')
+    managed_employees = db.relationship('Employee', backref=db.backref('manager', remote_side=[id]), lazy=True)
     
     def set_password(self, password):
         """Hash and set password"""
@@ -57,6 +59,7 @@ class Employee(db.Model):
             'name': self.name,
             'role': self.role,
             'organization_id': self.organization_id,
+            'manager_id': self.manager_id,
             'is_active': self.is_active,
             'created_at': self.created_at.isoformat()
         }
@@ -83,8 +86,8 @@ class MonitoringSession(db.Model):
         data = {
             'id': self.id,
             'employee_id': self.employee_id,
-            'start_time': self.start_time.isoformat(),
-            'end_time': self.end_time.isoformat() if self.end_time else None,
+            'start_time': self.start_time.isoformat() + 'Z' if self.start_time else None,
+            'end_time': self.end_time.isoformat() + 'Z' if self.end_time else None,
             'is_active': self.is_active,
             'duration_seconds': (self.end_time - self.start_time).total_seconds() if self.end_time else None
         }
@@ -111,7 +114,7 @@ class Activity(db.Model):
         return {
             'id': self.id,
             'session_id': self.session_id,
-            'timestamp': self.timestamp.isoformat(),
+            'timestamp': self.timestamp.isoformat() + 'Z' if self.timestamp else None,
             'activity_type': self.activity_type,
             'application_name': self.application_name,
             'window_title': self.window_title,
@@ -132,15 +135,43 @@ class Screenshot(db.Model):
     extracted_text = db.Column(db.Text, nullable=True)
     extraction_data = db.Column(db.JSON, nullable=True)  # Store full extraction response
     is_processed = db.Column(db.Boolean, default=False)
+    folder_name = db.Column(db.String(100), nullable=True)  # Dynamic folder based on allowlist
+    activity_name = db.Column(db.String(200), nullable=True)  # Activity label for process mining
     
     def to_dict(self):
         return {
             'id': self.id,
             'session_id': self.session_id,
-            'timestamp': self.timestamp.isoformat(),
+            'timestamp': self.timestamp.isoformat() + 'Z' if self.timestamp else None,
             'file_path': self.file_path,
             'file_size': self.file_size,
             'extracted_text': self.extracted_text,
             'extraction_data': self.extraction_data,
-            'is_processed': self.is_processed
+            'is_processed': self.is_processed,
+            'folder_name': self.folder_name,
+            'activity_name': self.activity_name
+        }
+
+
+class MonitoringConfig(db.Model):
+    """Manager-configured allowlist for selective monitoring"""
+    __tablename__ = 'monitoring_configs'
+    
+    id = db.Column(db.Integer, primary_key=True)
+    organization_id = db.Column(db.Integer, db.ForeignKey('organizations.id'), nullable=False)
+    config_type = db.Column(db.String(20), nullable=False)  # 'application' or 'url'
+    pattern = db.Column(db.String(500), nullable=False)  # App name or URL domain
+    folder_name = db.Column(db.String(100), nullable=False)  # Dynamic folder name
+    is_active = db.Column(db.Boolean, default=True)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    
+    def to_dict(self):
+        return {
+            'id': self.id,
+            'organization_id': self.organization_id,
+            'config_type': self.config_type,
+            'pattern': self.pattern,
+            'folder_name': self.folder_name,
+            'is_active': self.is_active,
+            'created_at': self.created_at.isoformat()
         }

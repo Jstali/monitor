@@ -32,7 +32,8 @@ const Login = () => {
     try {
       if (isLogin) {
         const user = await login(formData.email, formData.password);
-        navigate(user.role === 'admin' ? '/organization' : '/employee');
+        // Route super_admin and admin to organization dashboard
+        navigate(user.role === 'admin' || user.role === 'super_admin' ? '/organization' : '/employee');
       } else {
         await register(formData);
         setIsLogin(true);
@@ -135,7 +136,8 @@ const Login = () => {
                 onChange={handleChange}
               >
                 <option value="employee">Employee</option>
-                <option value="admin">Admin</option>
+                <option value="admin">Admin (Manager)</option>
+                <option value="super_admin">Super Admin</option>
               </select>
             </div>
           )}

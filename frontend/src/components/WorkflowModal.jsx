@@ -16,22 +16,11 @@ const WorkflowModal = ({ isOpen, onClose, workflowData }) => {
   if (!isOpen) return null;
 
   const generateSummary = () => {
-    if (!workflowData?.screenshot_workflow?.workflow_steps) return 'No workflow data available.';
+    // screenshot_workflow is now a pre-formatted string from the backend
+    if (!workflowData?.screenshot_workflow) return 'No workflow data available.';
     
-    const steps = workflowData.screenshot_workflow.workflow_steps;
-    if (steps.length === 0) return 'No activities detected.';
-
-    let summary = [];
-    steps.forEach((step, index) => {
-      const data = step.data;
-      if (data.app) {
-        const action = data.action ? ` → ${data.action}` : '';
-        const context = data.context ? ` (${data.context})` : '';
-        summary.push(`${index + 1}. ${data.app}${action}${context}`);
-      }
-    });
-
-    return summary.length > 0 ? summary.join('\n') : 'No detailed workflow available.';
+    // Return the pre-formatted summary text directly
+    return workflowData.screenshot_workflow;
   };
 
   return (

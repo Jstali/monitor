@@ -10,6 +10,9 @@ def create_app(config_class=Config):
     app = Flask(__name__)
     app.config.from_object(config_class)
     
+    # Disable strict slashes to prevent 308 redirects that break CORS
+    app.url_map.strict_slashes = False
+    
     # Initialize extensions
     CORS(app)
     db.init_app(app)
@@ -25,6 +28,7 @@ def create_app(config_class=Config):
     from routes.monitoring import monitor_bp
     from routes.screenshots import screenshot_bp
     from routes.workflow import workflow_bp
+    from routes.monitoring_config import config_bp
     
     app.register_blueprint(auth_bp, url_prefix='/api/auth')
     app.register_blueprint(org_bp, url_prefix='/api/organizations')
@@ -32,6 +36,7 @@ def create_app(config_class=Config):
     app.register_blueprint(monitor_bp, url_prefix='/api/monitoring')
     app.register_blueprint(screenshot_bp, url_prefix='/api/screenshots')
     app.register_blueprint(workflow_bp, url_prefix='/api/workflow')
+    app.register_blueprint(config_bp, url_prefix='/api/monitoring-config')
     
     # Error handlers
     @app.errorhandler(404)
