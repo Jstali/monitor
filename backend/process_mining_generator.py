@@ -17,6 +17,7 @@ class ProcessMiningGenerator:
         self.activities = []
         self.transitions = []
         self.activity_counts = Counter()
+        self.transition_sequence = []  # Initialize transition sequence
         
     def load_data(self):
         """Load screenshots and activities from database"""
@@ -48,8 +49,9 @@ class ProcessMiningGenerator:
         # Count activities
         self.activity_counts = Counter(activity_sequence)
         
-        # Build transitions (edges)
+        # Build transitions (edges) - KEEP FULL SEQUENCE for multiple arrows
         transition_counts = defaultdict(int)
+        transition_sequence = []  # NEW: Store each transition individually
         
         for i in range(len(activity_sequence) - 1):
             from_activity = activity_sequence[i]
@@ -58,8 +60,15 @@ class ProcessMiningGenerator:
             # Only count transitions between different activities
             if from_activity != to_activity:
                 transition_counts[(from_activity, to_activity)] += 1
+                # NEW: Store each transition with its sequence number
+                transition_sequence.append({
+                    'from': from_activity,
+                    'to': to_activity,
+                    'sequence': i + 1  # Sequence number for ordering
+                })
         
         self.transitions = transition_counts
+        self.transition_sequence = transition_sequence  # NEW: Full sequence
         
     def generate_graphviz_diagram(self, output_path='process_map.png'):
         """Generate professional process mining diagram using Graphviz"""
@@ -254,7 +263,8 @@ class ProcessMiningGenerator:
             'total_transitions': total_transitions,
             'activity_distribution': dict(self.activity_counts),
             'top_transitions': sorted(self.transitions.items(), 
-                                     key=lambda x: x[1], reverse=True)[:10]
+                                     key=lambda x: x[1], reverse=True)[:10],
+            'transition_sequence': self.transition_sequence  # NEW: Full sequence for multiple arrows
         }
 
 

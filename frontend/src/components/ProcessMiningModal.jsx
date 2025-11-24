@@ -9,6 +9,7 @@ const ProcessMiningModal = ({ sessionId, onClose, apiUrl, token }) => {
   const [statistics, setStatistics] = useState(null);
   const [diagramUrl, setDiagramUrl] = useState(null);
   const [summary, setSummary] = useState(null);
+  const [timeline, setTimeline] = useState(null);
   const [selectedActivity, setSelectedActivity] = useState(null);
   const [activityDetails, setActivityDetails] = useState(null);
   const [loadingDetails, setLoadingDetails] = useState(false);
@@ -44,7 +45,8 @@ const ProcessMiningModal = ({ sessionId, onClose, apiUrl, token }) => {
       if (summaryResponse.ok) {
         const summaryData = await summaryResponse.json();
         // Use screenshot_workflow for detailed steps, or activity_summary as fallback
-        setSummary(summaryData.screenshot_workflow || summaryData.activity_summary || 'No summary available.'); 
+        setSummary(summaryData.screenshot_workflow || summaryData.activity_summary || 'No summary available.');
+        setTimeline(summaryData.timeline); 
       }
 
       // Set diagram URL for image display
@@ -203,6 +205,7 @@ const ProcessMiningModal = ({ sessionId, onClose, apiUrl, token }) => {
               <div className="diagram-viewer">
                 <ProcessFlowDiagram 
                   statistics={statistics} 
+                  timeline={timeline}
                   sessionId={sessionId}
                   apiUrl={apiUrl}
                   token={token}
@@ -212,6 +215,7 @@ const ProcessMiningModal = ({ sessionId, onClose, apiUrl, token }) => {
 
               {selectedActivity && (
                 <div className="activity-details-panel">
+                  <div>
                   <div className="activity-details-header">
                     <h4>📊 {selectedActivity} - Detailed View</h4>
                     <button 
@@ -282,7 +286,7 @@ const ProcessMiningModal = ({ sessionId, onClose, apiUrl, token }) => {
                                   {screenshot.extraction_data && (
                                     <div className="step-details">
                                       <div className="step-app">
-                                        <strong>App:</strong> {screenshot.extraction_data.app || 'Unknown'}
+                                        <strong>App:</strong> {screenshot.activity_name || screenshot.extraction_data.app || 'Unknown'}
                                       </div>
                                       <div className="step-action">
                                         <strong>Action:</strong> {screenshot.extraction_data.action || 'Active'}
@@ -348,6 +352,7 @@ const ProcessMiningModal = ({ sessionId, onClose, apiUrl, token }) => {
                       )}
                     </div>
                   ) : null}
+                  </div>
                 </div>
               )}
 
