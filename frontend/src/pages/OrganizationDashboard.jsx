@@ -391,7 +391,7 @@ const OrganizationDashboard = () => {
         {managerProfile && ['admin', 'super_admin'].includes(managerProfile.role) && (
           <div className="card">
             <MonitoringConfigManager 
-              apiUrl={import.meta.env.VITE_API_URL || 'http://localhost:5001/api'}
+              apiUrl={import.meta.env.VITE_API_URL || 'http://localhost:3535/api'}
               token={localStorage.getItem('token')}
             />
           </div>

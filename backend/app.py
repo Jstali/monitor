@@ -14,7 +14,13 @@ def create_app(config_class=Config):
     app.url_map.strict_slashes = False
     
     # Initialize extensions
-    CORS(app)
+    # Configure CORS to allow all origins and methods
+    CORS(app, 
+         origins=["*"],
+         methods=["GET", "POST", "PUT", "DELETE", "OPTIONS", "PATCH"],
+         allow_headers=["Content-Type", "Authorization"],
+         supports_credentials=False,
+         max_age=3600)
     db.init_app(app)
     JWTManager(app)
     
@@ -58,6 +64,8 @@ def create_app(config_class=Config):
     
     return app
 
+# Create app instance for gunicorn
+app = create_app()
+
 if __name__ == '__main__':
-    app = create_app()
-    app.run(debug=True, host='0.0.0.0', port=5001)
+    app.run(debug=True, host='0.0.0.0', port=3535)

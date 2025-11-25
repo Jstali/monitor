@@ -4,49 +4,58 @@ Database Creation Script
 Creates the PostgreSQL database and all required tables
 """
 
-import psycopg
+import os
 import sys
+from urllib.parse import urlparse
 
-# Database connection parameters
-DB_HOST = 'localhost'
-DB_PORT = 5432
-DB_USER = 'postgres'
-DB_PASSWORD = 'stali'
-DB_NAME = 'monitor'
+# Get database URL from environment or use default
+DATABASE_URL = os.getenv('DATABASE_URL', 'postgresql+psycopg://postgres:abcd@host.docker.internal:5432/monitor')
+
+# Parse DATABASE_URL to extract connection parameters
+# Format: postgresql+psycopg://user:password@host:port/database
+try:
+    # Remove the postgresql+psycopg:// prefix for parsing
+    url = DATABASE_URL.replace('postgresql+psycopg://', 'postgresql://')
+    parsed = urlparse(url)
+    DB_HOST = parsed.hostname or 'host.docker.internal'
+    DB_PORT = parsed.port or 5432
+    DB_USER = parsed.username or 'postgres'
+    DB_PASSWORD = parsed.password or 'abcd'
+    DB_NAME = parsed.path.lstrip('/') or 'monitor'
+except Exception as e:
+    print(f"Error parsing DATABASE_URL: {e}")
+    # Fallback to defaults
+    DB_HOST = 'host.docker.internal'
+    DB_PORT = 5432
+    DB_USER = 'postgres'
+    DB_PASSWORD = 'abcd'
+    DB_NAME = 'monitor'
 
 def create_database():
-    """Create the monitor database if it doesn't exist"""
+    """Verify the monitor database exists (skip creation since it's on server)"""
     try:
-        # Connect to PostgreSQL server (default postgres database)
-        print(f"Connecting to PostgreSQL server at {DB_HOST}:{DB_PORT}...")
+        import psycopg
+        # Connect directly to the monitor database to verify it exists
+        print(f"Connecting to PostgreSQL database '{DB_NAME}' at {DB_HOST}:{DB_PORT}...")
         conn = psycopg.connect(
             host=DB_HOST,
             port=DB_PORT,
             user=DB_USER,
             password=DB_PASSWORD,
-            dbname='postgres',
-            autocommit=True
+            dbname=DB_NAME
         )
         cursor = conn.cursor()
-        
-        # Check if database exists
-        cursor.execute(f"SELECT 1 FROM pg_database WHERE datname = '{DB_NAME}'")
-        exists = cursor.fetchone()
-        
-        if exists:
-            print(f"✓ Database '{DB_NAME}' already exists")
-        else:
-            # Create database
-            print(f"Creating database '{DB_NAME}'...")
-            cursor.execute(f'CREATE DATABASE {DB_NAME}')
-            print(f"✓ Database '{DB_NAME}' created successfully")
-        
+        cursor.execute('SELECT version()')
+        version = cursor.fetchone()
+        print(f"✓ Database '{DB_NAME}' exists and is accessible")
+        print(f"✓ PostgreSQL version: {version[0][:50]}...")
         cursor.close()
         conn.close()
         return True
         
-    except psycopg.Error as e:
-        print(f"✗ Error creating database: {e}")
+    except Exception as e:
+        print(f"✗ Error connecting to database: {e}")
+        print(f"  Attempted connection to: {DB_USER}@{DB_HOST}:{DB_PORT}/{DB_NAME}")
         return False
 
 def create_tables():
@@ -79,26 +88,8 @@ def create_tables():
         return False
 
 def verify_connection():
-    """Verify database connection"""
-    try:
-        print("\nVerifying database connection...")
-        conn = psycopg.connect(
-            host=DB_HOST,
-            port=DB_PORT,
-            user=DB_USER,
-            password=DB_PASSWORD,
-            dbname=DB_NAME
-        )
-        cursor = conn.cursor()
-        cursor.execute('SELECT version()')
-        version = cursor.fetchone()
-        print(f"✓ Connected to PostgreSQL: {version[0]}")
-        cursor.close()
-        conn.close()
-        return True
-    except psycopg.Error as e:
-        print(f"✗ Connection error: {e}")
-        return False
+    """Verify database connection (already done in create_database)"""
+    return True
 
 def main():
     """Main execution"""

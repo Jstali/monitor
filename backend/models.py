@@ -1,8 +1,38 @@
 from datetime import datetime
 from flask_sqlalchemy import SQLAlchemy
 import bcrypt
+from cryptography.fernet import Fernet
+import base64
+import os
 
 db = SQLAlchemy()
+
+# Encryption key for agent credentials (use SECRET_KEY from config)
+def get_encryption_key():
+    """Get or generate encryption key for agent credentials"""
+    secret_key = os.getenv('SECRET_KEY', 'dev-secret-key-change-in-production')
+    # Generate a 32-byte key from SECRET_KEY
+    key = base64.urlsafe_b64encode(secret_key[:32].encode().ljust(32, b'0')[:32])
+    return key
+
+def encrypt_credentials(email, password):
+    """Encrypt agent credentials"""
+    key = get_encryption_key()
+    f = Fernet(key)
+    combined = f"{email}:{password}".encode()
+    encrypted = f.encrypt(combined)
+    return encrypted.decode()
+
+def decrypt_credentials(encrypted_data):
+    """Decrypt agent credentials"""
+    try:
+        key = get_encryption_key()
+        f = Fernet(key)
+        decrypted = f.decrypt(encrypted_data.encode())
+        email, password = decrypted.decode().split(':', 1)
+        return email, password
+    except Exception as e:
+        raise ValueError(f"Failed to decrypt credentials: {str(e)}")
 
 class Organization(db.Model):
     """Organization model"""
@@ -39,6 +69,8 @@ class Employee(db.Model):
     manager_id = db.Column(db.Integer, db.ForeignKey('employees.id'), nullable=True)  # Manager assignment
     is_active = db.Column(db.Boolean, default=True)
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    # Encrypted agent credentials (stored when employee provides them via dashboard)
+    agent_credentials_encrypted = db.Column(db.Text, nullable=True)
     
     # Relationships
     sessions = db.relationship('MonitoringSession', backref='employee', lazy=True, cascade='all, delete-orphan')

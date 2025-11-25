@@ -24,9 +24,9 @@ load_dotenv()
 class MonitoringAgent:
     def __init__(self):
         self.api_url = os.getenv('API_URL', 'http://localhost:5000/api')
-        self.email = os.getenv('EMAIL')
-        self.password = os.getenv('PASSWORD')
-        self.access_token = None
+        self.email = None
+        self.password = None
+        self.access_token = os.getenv('JWT_TOKEN')  # Required: JWT token to fetch credentials
         self.session_id = None
         self.screenshot_interval = 10  # Default, will be updated from server
         self.running = False
@@ -34,8 +34,46 @@ class MonitoringAgent:
         self.last_title = None
         self.allowlist = []  # Manager-configured allowlist
         
+    def fetch_credentials_from_api(self):
+        """Fetch credentials from API using JWT token"""
+        if not self.access_token:
+            print("✗ Error: JWT_TOKEN is required. Please set it in .env file")
+            print("   Get your JWT token from the Employee Dashboard after logging in")
+            return False
+        
+        try:
+            response = requests.get(
+                f'{self.api_url}/monitoring/agent/credentials',
+                headers={'Authorization': f'Bearer {self.access_token}'},
+                timeout=10
+            )
+            response.raise_for_status()
+            data = response.json()
+            self.email = data['email']
+            self.password = data['password']
+            print("✓ Fetched credentials from API")
+            return True
+        except requests.exceptions.HTTPError as e:
+            if e.response.status_code == 404:
+                print("✗ Error: No credentials stored in dashboard")
+                print("   Please go to Employee Dashboard and provide credentials when starting monitoring")
+            else:
+                print(f"✗ Error fetching credentials from API: {e}")
+            return False
+        except Exception as e:
+            print(f"✗ Error fetching credentials from API: {e}")
+            return False
+        
     def login(self):
         """Authenticate with the backend"""
+        # Fetch credentials from API (required - no .env fallback)
+        if not self.fetch_credentials_from_api():
+            return False
+        
+        # Verify we have credentials
+        if not self.email or not self.password:
+            return False
+        
         try:
             response = requests.post(
                 f'{self.api_url}/auth/login',
@@ -513,9 +551,39 @@ def main():
     """Main entry point"""
     agent = MonitoringAgent()
     
-    if not agent.email or not agent.password:
-        print("Error: EMAIL and PASSWORD must be set in .env file")
-        print("Copy .env.example to .env and configure your credentials")
+    # JWT_TOKEN is required to fetch credentials from API
+    if not agent.access_token:
+        print("=" * 60)
+        print("ERROR: JWT_TOKEN is required in .env file")
+        print("=" * 60)
+        print("\nTo get your JWT token:")
+        print("  1. Log in to the Employee Dashboard")
+        print("  2. Open browser Developer Tools (F12)")
+        print("  3. Go to Application/Storage > Local Storage")
+        print("  4. Copy the 'token' value")
+        print("  5. Add it to agent/.env as: JWT_TOKEN=your_token_here")
+        print("\nAlternatively, you can:")
+        print("  - Start monitoring from the dashboard (credentials will be stored)")
+        print("  - Then run the agent with JWT_TOKEN set")
+        print("\nNote: Credentials are now managed through the dashboard only.")
+        print("      No need to set EMAIL and PASSWORD in .env anymore.")
+        print("=" * 60)
+        sys.exit(1)
+    
+    # Fetch credentials from API (required)
+    if not agent.fetch_credentials_from_api():
+        print("\n" + "=" * 60)
+        print("ERROR: Could not fetch credentials from API")
+        print("=" * 60)
+        print("\nPlease ensure:")
+        print("  1. You have provided credentials in the Employee Dashboard")
+        print("  2. Your JWT_TOKEN is valid and not expired")
+        print("  3. The backend API is accessible")
+        print("\nTo set credentials:")
+        print("  - Log in to Employee Dashboard")
+        print("  - Click 'Start Monitoring'")
+        print("  - Enter your email and password in the modal")
+        print("=" * 60)
         sys.exit(1)
     
     agent.start()

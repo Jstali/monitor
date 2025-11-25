@@ -20,9 +20,15 @@ const EmployeeDashboard = () => {
   const [loading, setLoading] = useState(true);
   const [processing, setProcessing] = useState(false);
   const [showProcessMining, setShowProcessMining] = useState(false);
+  const [showCredentialsModal, setShowCredentialsModal] = useState(false);
+  const [credentials, setCredentials] = useState({ email: '', password: '' });
+  const [credentialsError, setCredentialsError] = useState('');
+  const [credentialsStatus, setCredentialsStatus] = useState({ has_credentials: false, masked_email: null });
+  const [showUpdateCredentials, setShowUpdateCredentials] = useState(false);
 
   useEffect(() => {
     loadData();
+    loadCredentialsStatus();
     const interval = setInterval(loadCurrentSession, 10000); // Refresh every 10 seconds
     return () => clearInterval(interval);
   }, []);
@@ -39,6 +45,15 @@ const EmployeeDashboard = () => {
       console.error('Failed to load data:', error);
     } finally {
       setLoading(false);
+    }
+  };
+
+  const loadCredentialsStatus = async () => {
+    try {
+      const res = await monitoringAPI.getCredentialsStatus();
+      setCredentialsStatus(res.data);
+    } catch (error) {
+      console.error('Failed to load credentials status:', error);
     }
   };
 
@@ -119,13 +134,67 @@ const EmployeeDashboard = () => {
 
 
   const handleStartSession = async () => {
+    // Show credentials modal first
+    setShowCredentialsModal(true);
+  };
+
+  const handleSubmitCredentials = async () => {
+    if (!credentials.email || !credentials.password) {
+      setCredentialsError('Please enter both email and password');
+      return;
+    }
+
     try {
       setLoading(true);
-      await monitoringAPI.startSession();
-      await loadData(); // Refresh data
+      setCredentialsError('');
+      
+      // Start session with credentials
+      await monitoringAPI.startSession({
+        agent_email: credentials.email,
+        agent_password: credentials.password
+      });
+      
+      // Refresh credentials status
+      await loadCredentialsStatus();
+      
+      // Close modal and refresh data
+      setShowCredentialsModal(false);
+      setCredentials({ email: '', password: '' });
+      await loadData();
     } catch (error) {
       console.error('Failed to start session:', error);
-      alert('Failed to start monitoring session. Please try again.');
+      setCredentialsError(error.response?.data?.error || 'Failed to start monitoring session. Please try again.');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleUpdateCredentials = async () => {
+    if (!credentials.email || !credentials.password) {
+      setCredentialsError('Please enter both email and password');
+      return;
+    }
+
+    try {
+      setLoading(true);
+      setCredentialsError('');
+      
+      // Update credentials
+      await monitoringAPI.updateAgentCredentials({
+        agent_email: credentials.email,
+        agent_password: credentials.password
+      });
+      
+      // Refresh credentials status
+      await loadCredentialsStatus();
+      
+      // Close modal
+      setShowUpdateCredentials(false);
+      setCredentials({ email: '', password: '' });
+      alert('Credentials updated successfully!');
+    } catch (error) {
+      console.error('Failed to update credentials:', error);
+      setCredentialsError(error.response?.data?.error || 'Failed to update credentials. Please try again.');
     } finally {
       setLoading(false);
     }
@@ -184,6 +253,81 @@ const EmployeeDashboard = () => {
       </header>
 
       <div className="dashboard-content">
+        {/* Agent Credentials Management */}
+        <div className="card">
+          <h2>
+            <Activity size={20} />
+            Agent Credentials
+          </h2>
+          <div style={{ marginTop: '1rem' }}>
+            {credentialsStatus.has_credentials ? (
+              <div style={{ 
+                padding: '1rem', 
+                backgroundColor: '#d1fae5', 
+                borderRadius: '8px',
+                border: '1px solid #a7f3d0'
+              }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                  <div>
+                    <strong style={{ color: '#065f46' }}>✓ Credentials Stored</strong>
+                    <p style={{ margin: '0.5rem 0 0 0', color: '#047857', fontSize: '14px' }}>
+                      Email: {credentialsStatus.masked_email}
+                    </p>
+                    <p style={{ margin: '0.5rem 0 0 0', color: '#6b7280', fontSize: '13px' }}>
+                      Your agent credentials are securely stored. You can update them anytime.
+                    </p>
+                  </div>
+                  <button
+                    className="btn btn-secondary"
+                    onClick={() => {
+                      setShowUpdateCredentials(true);
+                      setCredentials({ email: '', password: '' });
+                      setCredentialsError('');
+                    }}
+                    style={{ marginLeft: '1rem' }}
+                  >
+                    Update Credentials
+                  </button>
+                </div>
+              </div>
+            ) : (
+              <div style={{ 
+                padding: '1rem', 
+                backgroundColor: '#fef3c7', 
+                borderRadius: '8px',
+                border: '1px solid #fbbf24'
+              }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                  <div>
+                    <strong style={{ color: '#92400e' }}>⚠ No Credentials Stored</strong>
+                    <p style={{ margin: '0.5rem 0 0 0', color: '#78350f', fontSize: '14px' }}>
+                      You need to provide agent credentials to start monitoring.
+                    </p>
+                    <p style={{ margin: '0.5rem 0 0 0', color: '#6b7280', fontSize: '13px' }}>
+                      Credentials will be requested when you click "Start Monitoring".
+                    </p>
+                  </div>
+                  <button
+                    className="btn btn-primary"
+                    onClick={() => {
+                      setShowUpdateCredentials(true);
+                      setCredentials({ email: '', password: '' });
+                      setCredentialsError('');
+                    }}
+                    style={{ marginLeft: '1rem' }}
+                  >
+                    Set Credentials
+                  </button>
+                </div>
+              </div>
+            )}
+          </div>
+          <div style={{ marginTop: '1rem', padding: '0.75rem', backgroundColor: '#f3f4f6', borderRadius: '6px', fontSize: '13px', color: '#6b7280' }}>
+            <strong>Note:</strong> These credentials are used by the monitoring agent. 
+            Make sure to set JWT_TOKEN in agent/.env file (get it from browser Local Storage after logging in).
+          </div>
+        </div>
+
         {/* Current Session Status */}
         <div className="card">
           <h2>
@@ -429,9 +573,169 @@ const EmployeeDashboard = () => {
         <ProcessMiningModal 
           sessionId={selectedSession.id}
           onClose={() => setShowProcessMining(false)}
-          apiUrl={import.meta.env.VITE_API_URL || 'http://localhost:5001/api'}
+          apiUrl={import.meta.env.VITE_API_URL || 'http://localhost:3232/api'}
           token={localStorage.getItem('token')}
         />
+      )}
+
+      {/* Credentials Modal (for starting session) */}
+      {showCredentialsModal && (
+        <div className="modal-overlay" onClick={() => setShowCredentialsModal(false)}>
+          <div className="modal-content" onClick={(e) => e.stopPropagation()}>
+            <div className="modal-header">
+              <h2>Enter Agent Credentials</h2>
+              <button 
+                className="modal-close" 
+                onClick={() => {
+                  setShowCredentialsModal(false);
+                  setCredentials({ email: '', password: '' });
+                  setCredentialsError('');
+                }}
+              >
+                ×
+              </button>
+            </div>
+            <div className="modal-body">
+              <p style={{ marginBottom: '1rem', color: '#6b7280' }}>
+                Please enter your email and password for the monitoring agent. 
+                These credentials will be securely stored and used by the agent to authenticate.
+              </p>
+              
+              {credentialsStatus.has_credentials && (
+                <div style={{ marginBottom: '1rem', padding: '0.75rem', backgroundColor: '#dbeafe', color: '#1e40af', borderRadius: '4px', fontSize: '14px' }}>
+                  <strong>Note:</strong> You have credentials stored ({credentialsStatus.masked_email}). 
+                  You can update them or use the existing ones.
+                </div>
+              )}
+              
+              {credentialsError && (
+                <div className="error" style={{ marginBottom: '1rem', padding: '0.75rem', backgroundColor: '#fee', color: '#c33', borderRadius: '4px' }}>
+                  {credentialsError}
+                </div>
+              )}
+
+              <div className="form-group">
+                <label className="label">Email</label>
+                <input
+                  type="email"
+                  className="input"
+                  value={credentials.email}
+                  onChange={(e) => setCredentials({ ...credentials, email: e.target.value })}
+                  placeholder="your.email@example.com"
+                  required
+                />
+              </div>
+
+              <div className="form-group">
+                <label className="label">Password</label>
+                <input
+                  type="password"
+                  className="input"
+                  value={credentials.password}
+                  onChange={(e) => setCredentials({ ...credentials, password: e.target.value })}
+                  placeholder="Enter your password"
+                  required
+                />
+              </div>
+            </div>
+            <div className="modal-footer">
+              <button
+                className="btn btn-secondary"
+                onClick={() => {
+                  setShowCredentialsModal(false);
+                  setCredentials({ email: '', password: '' });
+                  setCredentialsError('');
+                }}
+              >
+                Cancel
+              </button>
+              <button
+                className="btn btn-primary"
+                onClick={handleSubmitCredentials}
+                disabled={loading}
+              >
+                {loading ? 'Starting...' : 'Start Monitoring'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Update Credentials Modal */}
+      {showUpdateCredentials && (
+        <div className="modal-overlay" onClick={() => setShowUpdateCredentials(false)}>
+          <div className="modal-content" onClick={(e) => e.stopPropagation()}>
+            <div className="modal-header">
+              <h2>{credentialsStatus.has_credentials ? 'Update' : 'Set'} Agent Credentials</h2>
+              <button 
+                className="modal-close" 
+                onClick={() => {
+                  setShowUpdateCredentials(false);
+                  setCredentials({ email: '', password: '' });
+                  setCredentialsError('');
+                }}
+              >
+                ×
+              </button>
+            </div>
+            <div className="modal-body">
+              <p style={{ marginBottom: '1rem', color: '#6b7280' }}>
+                {credentialsStatus.has_credentials 
+                  ? 'Update your agent credentials. These will be used by the monitoring agent.'
+                  : 'Set your agent credentials. These will be securely stored and used by the monitoring agent to authenticate.'}
+              </p>
+              
+              {credentialsError && (
+                <div className="error" style={{ marginBottom: '1rem', padding: '0.75rem', backgroundColor: '#fee', color: '#c33', borderRadius: '4px' }}>
+                  {credentialsError}
+                </div>
+              )}
+
+              <div className="form-group">
+                <label className="label">Email</label>
+                <input
+                  type="email"
+                  className="input"
+                  value={credentials.email}
+                  onChange={(e) => setCredentials({ ...credentials, email: e.target.value })}
+                  placeholder="your.email@example.com"
+                  required
+                />
+              </div>
+
+              <div className="form-group">
+                <label className="label">Password</label>
+                <input
+                  type="password"
+                  className="input"
+                  value={credentials.password}
+                  onChange={(e) => setCredentials({ ...credentials, password: e.target.value })}
+                  placeholder="Enter your password"
+                  required
+                />
+              </div>
+            </div>
+            <div className="modal-footer">
+              <button
+                className="btn btn-secondary"
+                onClick={() => {
+                  setShowUpdateCredentials(false);
+                  setCredentials({ email: '', password: '' });
+                  setCredentialsError('');
+                }}
+              >
+                Cancel
+              </button>
+              <button
+                className="btn btn-primary"
+                onClick={handleUpdateCredentials}
+                disabled={loading}
+              >
+                {loading ? 'Saving...' : credentialsStatus.has_credentials ? 'Update Credentials' : 'Save Credentials'}
+              </button>
+            </div>
+          </div>
+        </div>
       )}
     </div>
   );

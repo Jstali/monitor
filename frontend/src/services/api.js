@@ -1,6 +1,6 @@
 import axios from 'axios';
 
-const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5001/api';
+const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:3535/api';
 
 // Create axios instance
 const api = axios.create({
@@ -60,12 +60,15 @@ export const employeeAPI = {
 
 // Monitoring API
 export const monitoringAPI = {
-  startSession: () => api.post('/monitoring/sessions/start'),
+  startSession: (credentials) => api.post('/monitoring/sessions/start', credentials || {}),
   stopSession: () => api.post('/monitoring/sessions/stop'),
   getCurrentSession: () => api.get('/monitoring/sessions/current'),
   getSessions: (params) => api.get('/monitoring/sessions', { params }),
   logActivity: (data) => api.post('/monitoring/activities', data),
   getActivities: (sessionId) => api.get('/monitoring/activities', { params: { session_id: sessionId } }),
+  getAgentCredentials: () => api.get('/monitoring/agent/credentials'),
+  updateAgentCredentials: (credentials) => api.put('/monitoring/agent/credentials', credentials),
+  getCredentialsStatus: () => api.get('/monitoring/agent/credentials/status'),
 };
 
 // Screenshot API

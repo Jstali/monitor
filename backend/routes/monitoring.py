@@ -1,6 +1,6 @@
 from flask import Blueprint, request, jsonify
 from flask_jwt_extended import jwt_required, get_jwt_identity
-from models import db, Employee, MonitoringSession, Activity
+from models import db, Employee, MonitoringSession, Activity, encrypt_credentials, decrypt_credentials
 from datetime import datetime
 
 monitor_bp = Blueprint('monitoring', __name__)
@@ -24,6 +24,20 @@ def start_session():
     if active_session:
         return jsonify({'error': 'Active session already exists', 'session': active_session.to_dict()}), 400
     
+    # Get credentials from request (optional - for agent authentication)
+    data = request.get_json() or {}
+    agent_email = data.get('agent_email')
+    agent_password = data.get('agent_password')
+    
+    # If credentials provided, encrypt and store them
+    if agent_email and agent_password:
+        try:
+            encrypted_creds = encrypt_credentials(agent_email, agent_password)
+            employee.agent_credentials_encrypted = encrypted_creds
+            db.session.commit()
+        except Exception as e:
+            return jsonify({'error': f'Failed to store credentials: {str(e)}'}), 500
+    
     # Create new session
     session = MonitoringSession(employee_id=employee_id)
     db.session.add(session)
@@ -32,7 +46,8 @@ def start_session():
     return jsonify({
         'message': 'Monitoring session started',
         'session': session.to_dict(),
-        'screenshot_interval': employee.organization.screenshot_interval
+        'screenshot_interval': employee.organization.screenshot_interval,
+        'credentials_stored': bool(agent_email and agent_password)
     }), 201
 
 
@@ -175,3 +190,87 @@ def get_activities():
     activities = Activity.query.filter_by(session_id=session_id).order_by(Activity.timestamp).all()
     
     return jsonify([a.to_dict() for a in activities]), 200
+
+
+@monitor_bp.route('/agent/credentials', methods=['GET'])
+@jwt_required()
+def get_agent_credentials():
+    """Get encrypted agent credentials for the authenticated employee"""
+    employee_id = int(get_jwt_identity())
+    employee = Employee.query.get(employee_id)
+    
+    if not employee:
+        return jsonify({'error': 'Employee not found'}), 404
+    
+    if not employee.agent_credentials_encrypted:
+        return jsonify({'error': 'No agent credentials stored. Please provide credentials when starting a monitoring session.'}), 404
+    
+    try:
+        email, password = decrypt_credentials(employee.agent_credentials_encrypted)
+        return jsonify({
+            'email': email,
+            'password': password
+        }), 200
+    except Exception as e:
+        return jsonify({'error': f'Failed to decrypt credentials: {str(e)}'}), 500
+
+
+@monitor_bp.route('/agent/credentials', methods=['PUT'])
+@jwt_required()
+def update_agent_credentials():
+    """Update agent credentials for the authenticated employee"""
+    employee_id = int(get_jwt_identity())
+    employee = Employee.query.get(employee_id)
+    
+    if not employee:
+        return jsonify({'error': 'Employee not found'}), 404
+    
+    data = request.get_json()
+    agent_email = data.get('agent_email')
+    agent_password = data.get('agent_password')
+    
+    if not agent_email or not agent_password:
+        return jsonify({'error': 'Email and password are required'}), 400
+    
+    try:
+        encrypted_creds = encrypt_credentials(agent_email, agent_password)
+        employee.agent_credentials_encrypted = encrypted_creds
+        db.session.commit()
+        
+        return jsonify({
+            'message': 'Agent credentials updated successfully'
+        }), 200
+    except Exception as e:
+        return jsonify({'error': f'Failed to update credentials: {str(e)}'}), 500
+
+
+@monitor_bp.route('/agent/credentials/status', methods=['GET'])
+@jwt_required()
+def get_credentials_status():
+    """Check if agent credentials are stored"""
+    employee_id = int(get_jwt_identity())
+    employee = Employee.query.get(employee_id)
+    
+    if not employee:
+        return jsonify({'error': 'Employee not found'}), 404
+    
+    has_credentials = bool(employee.agent_credentials_encrypted)
+    
+    # If credentials exist, return masked email
+    masked_email = None
+    if has_credentials:
+        try:
+            email, _ = decrypt_credentials(employee.agent_credentials_encrypted)
+            # Mask email: user@example.com -> u***@example.com
+            if '@' in email:
+                local, domain = email.split('@', 1)
+                masked_email = f"{local[0]}***@{domain}" if len(local) > 1 else f"***@{domain}"
+            else:
+                masked_email = "***"
+        except:
+            masked_email = "***"
+    
+    return jsonify({
+        'has_credentials': has_credentials,
+        'masked_email': masked_email
+    }), 200
