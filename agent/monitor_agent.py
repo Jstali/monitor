@@ -147,7 +147,7 @@ class MonitoringAgent:
                 for item in self.allowlist:
                     print(f"  - {item['config_type']}: {item['pattern']} → {item['folder_name']}/")
             else:
-                print("⚠ No allowlist configured. Monitoring disabled.")
+                print("⚠ No allowlist configured. Capturing all activity to 'general_activity' folder.")
             
             return True
         except Exception as e:
@@ -157,50 +157,81 @@ class MonitoringAgent:
     
     def check_allowlist(self):
         """Check if current activity matches allowlist. Returns (should_capture, folder_name, activity_name)"""
-        # If no allowlist, don't capture anything
+        # If no allowlist, capture everything to general_activity folder
         if not self.allowlist:
-            return (False, None, None)
+            window_info = self.get_active_window_info()
+            app_name = window_info['application']
+            return (True, 'general_activity', app_name)
         
         window_info = self.get_active_window_info()
         app_name = window_info['application']
         window_title = window_info['title']
         
         # DEBUG: Print what we're checking
-        print(f"DEBUG: Checking app='{app_name}', title='{window_title[:50]}...'")
+        print(f"DEBUG: Checking app='{app_name}', title='{window_title[:50] if window_title else ''}...'")
         
         # Check each allowlist item
         for item in self.allowlist:
             if item['config_type'] == 'application':
-                # Case-insensitive application name matching
-                if item['pattern'].lower() in app_name.lower():
-                    print(f"DEBUG: ✓ MATCH! '{item['pattern']}' found in '{app_name}'")
-                    return (True, item['folder_name'], item['pattern'])
+                pattern = item['pattern'].lower()
+                app_lower = app_name.lower()
+                
+                # More flexible matching:
+                # 1. Check if pattern is in app name
+                # 2. Check if app name is in pattern
+                # 3. Check for common variations
+                is_match = False
+                
+                if pattern in app_lower or app_lower in pattern:
+                    is_match = True
                 else:
-                    print(f"DEBUG: ✗ No match: '{item['pattern']}' not in '{app_name}'")
+                    # Handle common variations
+                    # "Visual Studio Code" might be reported as "Code" or "Visual Studio Code"
+                    pattern_words = set(pattern.split())
+                    app_words = set(app_lower.split())
+                    
+                    # If any significant word matches (ignore common words)
+                    ignore_words = {'the', 'a', 'an', 'app', 'application'}
+                    pattern_words -= ignore_words
+                    app_words -= ignore_words
+                    
+                    if pattern_words and app_words and pattern_words & app_words:
+                        is_match = True
+                
+                if is_match:
+                    print(f"DEBUG: ✓ MATCH! '{item['pattern']}' matched with '{app_name}'")
+                    return (True, item['folder_name'], item['pattern'])
             
             elif item['config_type'] == 'url':
                 # Check if it's a browser and URL matches
                 browsers = ['Chrome', 'Firefox', 'Safari', 'Edge', 'Opera', 'Brave', 'Chromium']
                 is_browser = any(browser.lower() in app_name.lower() for browser in browsers)
                 
-                if is_browser and item['pattern'].lower() in window_title.lower():
-                    print(f"DEBUG: ✓ URL MATCH! '{item['pattern']}' found in title")
-                    return (True, item['folder_name'], item['pattern'])
+                if is_browser and window_title:
+                    # Check if URL pattern is in the window title
+                    # For Firefox, title might be "GitHub - Mozilla Firefox"
+                    # For Chrome, title might be "https://github.com/... - Page Title"
+                    
+                    pattern = item['pattern'].lower()
+                    title_lower = window_title.lower()
+                    
+                    # Remove protocol and www for easier matching
+                    clean_pattern = pattern.replace('https://', '').replace('http://', '').replace('www.', '')
+                    if '/' in clean_pattern:
+                        clean_pattern = clean_pattern.split('/')[0]  # Just match domain
+                    
+                    if clean_pattern in title_lower:
+                        print(f"DEBUG: ✓ URL MATCH! '{clean_pattern}' found in title")
+                        return (True, item['folder_name'], item['pattern'])
         
         # Not in allowlist
         print(f"DEBUG: ✗ NOT IN ALLOWLIST - Skipping capture")
         return (False, None, None)
     
     def capture_screenshot(self):
-        """Capture and upload screenshot (ALLOWLIST ONLY)"""
+        """Capture screenshot of ALL applications, but only upload if in allowlist"""
         try:
-            # CHECK ALLOWLIST - Only capture if current activity is in manager's allowlist
-            should_capture, folder_name, activity_name = self.check_allowlist()
-            
-            if not should_capture:
-                # Skip - not in allowlist, do not save anything
-                return True
-            
+            # STEP 1: Capture screenshot FIRST (for all applications)
             with mss.mss() as sct:
                 # Capture primary monitor
                 monitor = sct.monitors[1]
@@ -213,26 +244,37 @@ class MonitoringAgent:
                 img_bytes = BytesIO()
                 img.save(img_bytes, format='PNG', optimize=True)
                 img_bytes.seek(0)
-                
-                # Upload to server with folder routing metadata
-                files = {'file': ('screenshot.png', img_bytes, 'image/png')}
-                data = {
-                    'folder_name': folder_name,
-                    'activity_name': activity_name
-                }
-                
-                response = requests.post(
-                    f'{self.api_url}/screenshots/upload',
-                    headers=self.get_headers(),
-                    files=files,
-                    data=data,
-                    timeout=30
-                )
-                response.raise_for_status()
-                
+            
+            # STEP 2: Check allowlist AFTER capture (filter before upload)
+            should_capture, folder_name, activity_name = self.check_allowlist()
+            
+            if not should_capture:
+                # Screenshot captured but NOT in allowlist
+                # Delete it immediately (don't upload, don't store)
                 timestamp = datetime.now().strftime('%H:%M:%S')
-                print(f"  [{timestamp}] Screenshot captured → {folder_name}/")
-                return True
+                window_info = self.get_active_window_info()
+                print(f"  [{timestamp}] Skipped: {window_info['application']} (not in allowlist)")
+                return True  # Not an error, just filtered out
+            
+            # STEP 3: Upload ONLY allowlist screenshots
+            files = {'file': ('screenshot.png', img_bytes, 'image/png')}
+            data = {
+                'folder_name': folder_name,
+                'activity_name': activity_name
+            }
+            
+            response = requests.post(
+                f'{self.api_url}/screenshots/upload',
+                headers=self.get_headers(),
+                files=files,
+                data=data,
+                timeout=30
+            )
+            response.raise_for_status()
+            
+            timestamp = datetime.now().strftime('%H:%M:%S')
+            print(f"  [{timestamp}] ✓ Screenshot uploaded → {folder_name}/ ({activity_name})")
+            return True
                 
         except Exception as e:
             print(f"✗ Screenshot capture failed: {e}")
@@ -259,6 +301,35 @@ class MonitoringAgent:
                 
                 app_name = app_result.stdout.strip()
                 
+                # FIX 1: Handle Electron apps (like VS Code)
+                if app_name == "Electron":
+                    # Check if it's actually VS Code based on window title or process
+                    # VS Code often runs as "Electron" but we can check if it's Code
+                    try:
+                        # Get window title first
+                        title_script = '''
+                        tell application "System Events"
+                            tell application process "Electron"
+                                if (count of windows) > 0 then
+                                    return name of front window
+                                end if
+                            end tell
+                        end tell
+                        '''
+                        title_result = subprocess.run(['osascript', '-e', title_script],
+                                                    capture_output=True, text=True, timeout=2)
+                        window_title = title_result.stdout.strip()
+                        
+                        # Heuristic: If title contains typical VS Code patterns
+                        if "Visual Studio Code" in window_title or ".py" in window_title or ".js" in window_title or ".tsx" in window_title:
+                            app_name = "Visual Studio Code"
+                        else:
+                            # Try to check running processes to see if it's VS Code
+                            # This is a fallback
+                            pass
+                    except:
+                        pass
+
                 # For browsers, try to get the actual URL
                 if 'Chrome' in app_name or 'Chromium' in app_name:
                     url_script = '''
@@ -289,23 +360,60 @@ class MonitoringAgent:
                         return {'application': app_name, 'title': url_result.stdout.strip()}
                 
                 elif 'Firefox' in app_name or 'firefox' in app_name:
-                    # Firefox doesn't support direct URL access via AppleScript easily
-                    # We'll try to get the window title which often contains the page title
+                    # FIX 2: Improved Firefox URL detection using UI Scripting
+                    # Firefox doesn't support standard AppleScript for URL, so we use UI scripting to get the address bar
                     firefox_script = '''
                     tell application "System Events"
                         tell application process "Firefox"
-                            if (count of windows) > 0 then
-                                return name of front window
-                            end if
+                            set frontWindow to front window
+                            set windowTitle to name of frontWindow
+                            
+                            -- Try to get URL from address bar (Cmd+L usually highlights it)
+                            -- This is tricky without sending keystrokes which disrupts user
+                            -- So we fallback to window title which usually has "Page Title - Mozilla Firefox"
+                            
+                            return windowTitle
                         end tell
                     end tell
                     '''
-                    # Try with lowercase if uppercase fails
                     firefox_result = subprocess.run(['osascript', '-e', firefox_script],
                                                   capture_output=True, text=True, timeout=2)
                     
                     if firefox_result.returncode == 0 and firefox_result.stdout.strip():
-                        return {'application': app_name, 'title': firefox_result.stdout.strip()}
+                        window_title = firefox_result.stdout.strip()
+                        # Return just the title, but we can try to extract domain if possible
+                        # or rely on the fact that we now know it's Firefox
+                        return {'application': app_name, 'title': window_title}
+                
+                elif 'Edge' in app_name or 'edge' in app_name:
+                    # Microsoft Edge (Chromium-based)
+                    edge_script = '''
+                    tell application "Microsoft Edge"
+                        if (count of windows) > 0 then
+                            set currentTab to active tab of front window
+                            return URL of currentTab & " - " & title of currentTab
+                        end if
+                    end tell
+                    '''
+                    edge_result = subprocess.run(['osascript', '-e', edge_script],
+                                               capture_output=True, text=True, timeout=2)
+                    if edge_result.returncode == 0 and edge_result.stdout.strip():
+                        return {'application': app_name, 'title': edge_result.stdout.strip()}
+                
+                elif 'Brave' in app_name or 'brave' in app_name:
+                    # Brave Browser (Chromium-based)
+                    brave_script = '''
+                    tell application "Brave Browser"
+                        if (count of windows) > 0 then
+                            set currentTab to active tab of front window
+                            return URL of currentTab & " - " & title of currentTab
+                        end if
+                    end tell
+                    '''
+                    brave_result = subprocess.run(['osascript', '-e', brave_script],
+                                               capture_output=True, text=True, timeout=2)
+                    if brave_result.returncode == 0 and brave_result.stdout.strip():
+                        return {'application': app_name, 'title': brave_result.stdout.strip()}
                 
                 # For other apps, try to get window title
                 window_script = f'''
@@ -369,14 +477,7 @@ class MonitoringAgent:
             return False
     
     def track_activity(self):
-        """Track current application/window activity (ALLOWLIST ONLY)"""
-        # CHECK ALLOWLIST - Only track if current activity is in manager's allowlist
-        should_capture, folder_name, activity_name = self.check_allowlist()
-        
-        if not should_capture:
-            # Skip - not in allowlist
-            return
-
+        """Track current application/window activity (ALL APPLICATIONS)"""
         window_info = self.get_active_window_info()
         
         current_app = window_info['application']
@@ -384,9 +485,6 @@ class MonitoringAgent:
         
         # Check for permission issue
         if current_app == 'Unknown' and current_title == '':
-            # Only warn if we expected to capture something (which we did, since check_allowlist passed)
-            # But check_allowlist calls get_active_window_info internally, so this might be redundant
-            # keeping it for safety
             print("⚠ WARNING: Unable to detect active window. Please grant Accessibility permissions to your Terminal/Python.")
             return
 
@@ -395,7 +493,13 @@ class MonitoringAgent:
             self.last_app = current_app
             self.last_title = current_title
             
-            print(f"  Activity: {current_app} - {current_title}")
+            # Check if this activity is in allowlist (for metadata)
+            should_capture, folder_name, activity_name = self.check_allowlist()
+            in_allowlist = should_capture
+            
+            # Log activity indicator
+            allowlist_indicator = "✓" if in_allowlist else "○"
+            print(f"  {allowlist_indicator} Activity: {current_app} - {current_title[:50]}...")
             
             # Determine if it's a browser (website) or application
             browsers = ['Chrome', 'Firefox', 'Safari', 'Edge', 'Opera', 'Brave']
@@ -409,13 +513,15 @@ class MonitoringAgent:
                     'website',
                     application_name=current_app,  # Add browser name
                     url=url,
-                    window_title=current_title  # Full window title
+                    window_title=current_title,  # Full window title
+                    in_allowlist=in_allowlist  # NEW: Track if in allowlist
                 )
             else:
                 self.log_activity(
                     'application',
                     application_name=current_app,
-                    window_title=current_title
+                    window_title=current_title,
+                    in_allowlist=in_allowlist  # NEW: Track if in allowlist
                 )
     
     def screenshot_loop(self):
@@ -477,7 +583,8 @@ class MonitoringAgent:
             return
 
         # Open the dashboard for the user to control the session
-        dashboard_url = "http://localhost:5173"
+        # Open the dashboard for the user to control the session
+        dashboard_url = os.getenv('DASHBOARD_URL', 'http://localhost:5173')
         print(f"Opening dashboard at {dashboard_url}...")
         webbrowser.open(dashboard_url)
         

@@ -69,6 +69,7 @@ function AppRoutes() {
 }
 
 function App() {
+  console.log("🚀 APP VERSION: 3.0 - NO CREDENTIAL POPUP ON START");
   return (
     <BrowserRouter>
       <AuthProvider>

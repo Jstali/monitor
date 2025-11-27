@@ -1,83 +1,530 @@
+/* Bright & Sparkling Glassmorphism Design */
+@import url('https://fonts.googleapis.com/css2?family=Montserrat:wght@300;400;500;600;700&display=swap');
+
+:root {
+    --primary-gradient: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    --glass-bg: rgba(255, 255, 255, 0.25);
+    --glass-border: rgba(255, 255, 255, 0.5);
+    --text-color: #2d3748;
+    --text-muted: #718096;
+    --input-bg: rgba(255, 255, 255, 0.4);
+    --input-border: rgba(255, 255, 255, 0.6);
+}
+
 .login-container {
     min-height: 100vh;
     display: flex;
     align-items: center;
     justify-content: center;
-    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    /* Bright, vibrant gradient background */
+    background: linear-gradient(120deg, #e0c3fc 0%, #8ec5fc 100%);
     padding: 20px;
+    position: relative;
+    overflow: hidden;
+    font-family: 'Montserrat', sans-serif;
+    perspective: 1000px;
 }
 
-.login-card {
-    background: white;
-    border-radius: 16px;
-    padding: 40px;
+/* --- Sparkling Stars Animation --- */
+.login-container::before,
+.login-container::after {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
     width: 100%;
-    max-width: 450px;
-    box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+    height: 100%;
+    pointer-events: none;
+    background-image:
+        radial-gradient(white, rgba(255, 255, 255, .2) 2px, transparent 3px),
+        radial-gradient(white, rgba(255, 255, 255, .15) 1px, transparent 2px),
+        radial-gradient(white, rgba(255, 255, 255, .1) 2px, transparent 3px);
+    background-size: 550px 550px, 350px 350px, 250px 250px;
+    background-position: 0 0, 40px 60px, 130px 270px;
+    animation: sparkle 60s linear infinite;
+    z-index: 1;
 }
 
-.login-header {
-    text-align: center;
-    margin-bottom: 32px;
+.login-container::after {
+    background-image:
+        radial-gradient(white, rgba(255, 255, 255, .3) 2px, transparent 3px),
+        radial-gradient(white, rgba(255, 255, 255, .2) 1px, transparent 2px);
+    background-size: 400px 400px, 300px 300px;
+    background-position: 20px 30px, 80px 100px;
+    animation: sparkle 40s linear infinite reverse;
 }
 
-.login-header h1 {
-    font-size: 32px;
-    color: var(--dark);
-    margin-bottom: 8px;
+@keyframes sparkle {
+    from {
+        transform: translateY(0);
+    }
+
+    to {
+        transform: translateY(-550px);
+    }
 }
 
-.login-header p {
-    color: var(--gray);
-    font-size: 14px;
+/* --- 3D Background Objects (Iridescent/Crystal) --- */
+.background-objects {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    z-index: 0;
+    pointer-events: none;
+    transform-style: preserve-3d;
 }
 
-.login-tabs {
-    display: flex;
-    gap: 8px;
-    margin-bottom: 24px;
-    background: var(--bg);
+.obj {
+    position: absolute;
+    transform-style: preserve-3d;
+}
+
+/* Crystal Spheres */
+.sphere {
+    border-radius: 50%;
+    background: radial-gradient(circle at 30% 30%, rgba(255, 255, 255, 0.8), rgba(255, 255, 255, 0.2) 40%, rgba(255, 255, 255, 0) 70%);
+    box-shadow: inset -10px -10px 20px rgba(255, 255, 255, 0.5),
+        inset 10px 10px 20px rgba(255, 255, 255, 0.8),
+        0 10px 20px rgba(0, 0, 0, 0.1);
+    backdrop-filter: blur(3px);
+    animation: floatSphere 8s ease-in-out infinite;
+}
+
+.sphere-1 {
+    width: 140px;
+    height: 140px;
+    top: 10%;
+    right: 15%;
+    background: radial-gradient(circle at 30% 30%, rgba(255, 230, 250, 0.8), rgba(255, 255, 255, 0.1) 60%);
+    animation-delay: 0s;
+}
+
+.sphere-2 {
+    width: 90px;
+    height: 90px;
+    bottom: 15%;
+    left: 10%;
+    background: radial-gradient(circle at 30% 30%, rgba(230, 240, 255, 0.8), rgba(255, 255, 255, 0.1) 60%);
+    animation-delay: -2s;
+}
+
+.sphere-3 {
+    width: 70px;
+    height: 70px;
+    top: 40%;
+    left: 5%;
+    background: radial-gradient(circle at 30% 30%, rgba(255, 255, 230, 0.8), rgba(255, 255, 255, 0.1) 60%);
+    animation-delay: -4s;
+}
+
+@keyframes floatSphere {
+
+    0%,
+    100% {
+        transform: translateY(0) scale(1);
+    }
+
+    50% {
+        transform: translateY(-30px) scale(1.05);
+    }
+}
+
+/* Crystal Cubes */
+.cube {
+    width: 60px;
+    height: 60px;
+    transform-style: preserve-3d;
+    animation: floatRotateCube 12s linear infinite;
+}
+
+.cube div {
+    position: absolute;
+    width: 60px;
+    height: 60px;
+    background: rgba(255, 255, 255, 0.15);
+    border: 1px solid rgba(255, 255, 255, 0.6);
+    box-shadow: 0 0 15px rgba(255, 255, 255, 0.3);
+}
+
+.cube .front {
+    transform: translateZ(30px);
+}
+
+.cube .back {
+    transform: rotateY(180deg) translateZ(30px);
+}
+
+.cube .right {
+    transform: rotateY(90deg) translateZ(30px);
+}
+
+.cube .left {
+    transform: rotateY(-90deg) translateZ(30px);
+}
+
+.cube .top {
+    transform: rotateX(90deg) translateZ(30px);
+}
+
+.cube .bottom {
+    transform: rotateX(-90deg) translateZ(30px);
+}
+
+.cube-1 {
+    top: 15%;
+    left: 20%;
+    animation-duration: 15s;
+}
+
+.cube-2 {
+    bottom: 20%;
+    right: 10%;
+    width: 80px;
+    height: 80px;
+}
+
+.cube-2 div {
+    width: 80px;
+    height: 80px;
+    transform: translateZ(40px);
+}
+
+.cube-2 .front {
+    transform: translateZ(40px);
+}
+
+.cube-2 .back {
+    transform: rotateY(180deg) translateZ(40px);
+}
+
+.cube-2 .right {
+    transform: rotateY(90deg) translateZ(40px);
+}
+
+.cube-2 .left {
+    transform: rotateY(-90deg) translateZ(40px);
+}
+
+.cube-2 .top {
+    transform: rotateX(90deg) translateZ(40px);
+}
+
+.cube-2 .bottom {
+    transform: rotateX(-90deg) translateZ(40px);
+}
+
+@keyframes floatRotateCube {
+    0% {
+        transform: rotateX(0deg) rotateY(0deg) translateY(0);
+    }
+
+    50% {
+        transform: rotateX(180deg) rotateY(180deg) translateY(-40px);
+    }
+
+    100% {
+        transform: rotateX(360deg) rotateY(360deg) translateY(0);
+    }
+}
+
+/* Prisms */
+.prism {
+    width: 0;
+    height: 0;
+    border-left: 40px solid transparent;
+    border-right: 40px solid transparent;
+    border-bottom: 70px solid rgba(255, 255, 255, 0.3);
+    filter: drop-shadow(0 5px 15px rgba(255, 255, 255, 0.4));
+    animation: floatPrism 10s ease-in-out infinite;
+}
+
+.prism::after {
+    content: '';
+    position: absolute;
+    top: 6px;
+    left: -35px;
+    width: 0;
+    height: 0;
+    border-left: 35px solid transparent;
+    border-right: 35px solid transparent;
+    border-bottom: 60px solid rgba(255, 255, 255, 0.15);
+}
+
+.prism-1 {
+    top: 25%;
+    left: 8%;
+    transform: rotate(15deg);
+    animation-delay: -1s;
+}
+
+.prism-2 {
+    bottom: 35%;
+    right: 5%;
+    transform: rotate(-20deg) scale(1.2);
+    border-bottom-color: rgba(255, 255, 255, 0.4);
+    animation-delay: -3s;
+}
+
+@keyframes floatPrism {
+
+    0%,
+    100% {
+        transform: translateY(0) rotate(0deg);
+    }
+
+    50% {
+        transform: translateY(-25px) rotate(10deg);
+    }
+}
+
+/* --- Glass Card (Bright) --- */
+.glass-card {
+    background: rgba(255, 255, 255, 0.35);
+    backdrop-filter: blur(25px);
+    -webkit-backdrop-filter: blur(25px);
+    border: 1px solid rgba(255, 255, 255, 0.8);
+    border-radius: 24px;
     padding: 4px;
-    border-radius: 10px;
+    width: 100%;
+    max-width: 440px;
+    box-shadow: 0 20px 60px rgba(0, 0, 0, 0.1),
+        inset 0 0 0 2px rgba(255, 255, 255, 0.4);
+    z-index: 10;
+    position: relative;
 }
 
-.tab {
-    flex: 1;
-    padding: 10px;
-    border: none;
-    background: transparent;
-    border-radius: 8px;
-    font-size: 14px;
+.card-content {
+    background: linear-gradient(180deg, rgba(255, 255, 255, 0.6) 0%, rgba(255, 255, 255, 0.2) 100%);
+    border-radius: 20px;
+    padding: 40px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+}
+
+.header {
+    text-align: center;
+    margin-bottom: 30px;
+}
+
+.header h1 {
+    font-size: 22px;
+    font-weight: 800;
+    color: #2d3748;
+    letter-spacing: 0.5px;
+    line-height: 1.3;
+    margin-bottom: 8px;
+    text-transform: uppercase;
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+}
+
+.subtitle {
+    font-size: 15px;
+    color: #718096;
     font-weight: 500;
-    cursor: pointer;
+}
+
+/* --- Form --- */
+.login-form {
+    width: 100%;
+    display: flex;
+    flex-direction: column;
+    gap: 20px;
+}
+
+.input-group {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+}
+
+.input-group label {
+    font-size: 13px;
+    font-weight: 600;
+    color: #4a5568;
+    margin-left: 4px;
+}
+
+.input-wrapper {
+    position: relative;
     display: flex;
     align-items: center;
-    justify-content: center;
-    gap: 6px;
-    color: var(--gray);
-    transition: all 0.2s;
 }
 
-.tab.active {
-    background: white;
-    color: var(--primary);
-    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+.input-icon {
+    position: absolute;
+    left: 16px;
+    color: #a0aec0;
+    z-index: 2;
+    transition: color 0.3s;
 }
 
-.login-form {
-    display: flex;
-    flex-direction: column;
-    gap: 16px;
-}
-
-.form-group {
-    display: flex;
-    flex-direction: column;
-}
-
-.btn-block {
+.input-wrapper input,
+.custom-select {
     width: 100%;
-    margin-top: 8px;
+    background: rgba(255, 255, 255, 0.6);
+    border: 1px solid rgba(255, 255, 255, 0.8);
+    border-radius: 12px;
+    padding: 14px 16px 14px 48px;
+    font-size: 15px;
+    color: #2d3748;
+    outline: none;
+    transition: all 0.3s ease;
+    box-shadow: 0 4px 6px rgba(0, 0, 0, 0.02);
+}
+
+.custom-select {
+    padding-left: 16px;
+    background-image: url("data:image/svg+xml;charset=UTF-8,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23718096' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3e%3cpolyline points='6 9 12 15 18 9'%3e%3c/polyline%3e%3c/svg%3e");
+}
+
+.custom-select option {
+    background: white;
+    color: #2d3748;
+}
+
+.input-wrapper input:focus,
+.custom-select:focus {
+    background: white;
+    border-color: #667eea;
+    box-shadow: 0 0 0 4px rgba(102, 126, 234, 0.15);
+}
+
+.input-wrapper input:focus+.input-icon {
+    color: #667eea;
+}
+
+.password-toggle {
+    position: absolute;
+    right: 16px;
+    background: none;
+    border: none;
+    color: #a0aec0;
+    cursor: pointer;
+    padding: 0;
+    display: flex;
+    align-items: center;
+}
+
+.password-toggle:hover {
+    color: #4a5568;
+}
+
+.forgot-password {
+    text-align: right;
+    margin-top: -8px;
+}
+
+.forgot-password a {
+    color: #667eea;
+    font-size: 13px;
+    font-weight: 500;
+    text-decoration: none;
+    transition: color 0.3s;
+}
+
+.forgot-password a:hover {
+    color: #764ba2;
+    text-decoration: underline;
+}
+
+/* --- Button --- */
+.login-btn {
+    position: relative;
+    width: 100%;
+    padding: 16px;
+    border: none;
+    border-radius: 30px;
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    color: white;
+    font-size: 15px;
+    font-weight: 700;
+    letter-spacing: 1px;
+    cursor: pointer;
+    overflow: hidden;
+    transition: all 0.3s ease;
+    box-shadow: 0 10px 20px rgba(118, 75, 162, 0.3);
+    margin-top: 10px;
+}
+
+.login-btn:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 15px 30px rgba(118, 75, 162, 0.4);
+}
+
+.login-btn:active {
+    transform: translateY(0);
+}
+
+.btn-glow {
+    position: absolute;
+    top: -50%;
+    left: -50%;
+    width: 200%;
+    height: 200%;
+    background: radial-gradient(circle, rgba(255, 255, 255, 0.4) 0%, transparent 60%);
+    opacity: 0;
+    transform: scale(0.5);
+    transition: opacity 0.3s, transform 0.3s;
+}
+
+.login-btn:hover .btn-glow {
+    opacity: 1;
+    transform: scale(1);
+}
+
+/* --- Toggle Mode --- */
+.toggle-mode {
+    text-align: center;
+    margin-top: 20px;
+}
+
+.toggle-mode p {
+    color: #718096;
+    font-size: 14px;
+}
+
+.toggle-btn {
+    background: none;
+    border: none;
+    color: #667eea;
+    font-weight: 700;
+    cursor: pointer;
+    padding: 0;
+    font-size: 14px;
+    transition: color 0.3s;
+}
+
+.toggle-btn:hover {
+    color: #764ba2;
+    text-decoration: underline;
+}
+
+/* --- Footer --- */
+.footer-logo {
+    margin-top: 30px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    color: #a0aec0;
+    font-size: 14px;
+    font-weight: 600;
+    letter-spacing: 1px;
+}
+
+.error-message {
+    background: #fff5f5;
+    border: 1px solid #feb2b2;
+    color: #c53030;
     padding: 12px;
-    font-size: 16px;
+    border-radius: 12px;
+    font-size: 13px;
+    text-align: center;
+    margin-bottom: 20px;
+    width: 100%;
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
 }

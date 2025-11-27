@@ -141,6 +141,7 @@ class Activity(db.Model):
     window_title = db.Column(db.String(500), nullable=True)
     url = db.Column(db.String(1000), nullable=True)
     duration_seconds = db.Column(db.Integer, default=0)
+    in_allowlist = db.Column(db.Boolean, default=False)  # Track if activity was in allowlist
     
     def to_dict(self):
         return {
@@ -151,7 +152,8 @@ class Activity(db.Model):
             'application_name': self.application_name,
             'window_title': self.window_title,
             'url': self.url,
-            'duration_seconds': self.duration_seconds
+            'duration_seconds': self.duration_seconds,
+            'in_allowlist': self.in_allowlist
         }
 
 

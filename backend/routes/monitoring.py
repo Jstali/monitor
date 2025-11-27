@@ -152,7 +152,8 @@ def log_activity():
         application_name=data.get('application_name'),
         window_title=data.get('window_title'),
         url=data.get('url'),
-        duration_seconds=data.get('duration_seconds', 0)
+        duration_seconds=data.get('duration_seconds', 0),
+        in_allowlist=data.get('in_allowlist', False)  # NEW: Track if in allowlist
     )
     
     db.session.add(activity)

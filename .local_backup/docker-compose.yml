@@ -1,0 +1,38 @@
+version: '3.8'
+
+services:
+  backend:
+    build: ./backend
+    ports:
+      - "5001:5001"
+    environment:
+      - DATABASE_URL=postgresql+psycopg://postgres:stali@db:5432/monitor
+      - SECRET_KEY=${SECRET_KEY:-prod-secret-key-change-this}
+      - JWT_SECRET_KEY=${JWT_SECRET_KEY:-prod-jwt-secret-key-change-this}
+      - MISTRAL_API_KEY=${MISTRAL_API_KEY}
+      - OCR_ENABLED=true
+    depends_on:
+      - db
+    volumes:
+      - ./backend/screenshots:/app/screenshots
+
+  frontend:
+    build: ./frontend
+    ports:
+      - "80:80"
+    depends_on:
+      - backend
+
+  db:
+    image: postgres:15-alpine
+    environment:
+      - POSTGRES_USER=postgres
+      - POSTGRES_PASSWORD=stali
+      - POSTGRES_DB=monitor
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    ports:
+      - "5432:5432"
+
+volumes:
+  postgres_data:

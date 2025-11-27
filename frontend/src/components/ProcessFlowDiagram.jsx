@@ -77,6 +77,18 @@ const ProcessFlowDiagram = ({ statistics, timeline, sessionId, apiUrl, token, on
           width: 2,
           dashes: true,
         });
+      } else if (Object.keys(activity_distribution).length > 0) {
+        // If no transitions but there are activities, connect START to the only activity
+        const onlyActivity = Object.keys(activity_distribution)[0];
+        edges.push({
+          from: 'START',
+          to: onlyActivity,
+          label: '1',
+          arrows: { to: { enabled: true, scaleFactor: 1.0 } },
+          color: { color: '#78909C' },
+          width: 2,
+          dashes: true,
+        });
       }
 
       // Add INDIVIDUAL transitions (Multiple arrows for repeated transitions)
@@ -132,6 +144,18 @@ const ProcessFlowDiagram = ({ statistics, timeline, sessionId, apiUrl, token, on
         const lastActivity = transition_sequence[transition_sequence.length - 1].to;
         edges.push({
           from: lastActivity,
+          to: 'END',
+          label: 'End',
+          arrows: { to: { enabled: true, scaleFactor: 1.0 } },
+          color: { color: '#78909C' },
+          width: 2,
+          dashes: true,
+        });
+      } else if (Object.keys(activity_distribution).length > 0) {
+        // If no transitions but there are activities, connect the only activity to END
+        const onlyActivity = Object.keys(activity_distribution)[0];
+        edges.push({
+          from: onlyActivity,
           to: 'END',
           label: 'End',
           arrows: { to: { enabled: true, scaleFactor: 1.0 } },

@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
-import { LogIn, UserPlus } from 'lucide-react';
+import { Mail, Lock, Eye, EyeOff, Hexagon } from 'lucide-react';
 import './Login.css';
 
 const Login = () => {
@@ -13,8 +13,9 @@ const Login = () => {
     organization_name: '',
     role: 'employee',
   });
-  const [error, setError] = useState('');
+  const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
+  const [error, setError] = useState('');
   
   const { login, register } = useAuth();
   const navigate = useNavigate();
@@ -32,7 +33,6 @@ const Login = () => {
     try {
       if (isLogin) {
         const user = await login(formData.email, formData.password);
-        // Route super_admin and admin to organization dashboard
         navigate(user.role === 'admin' || user.role === 'super_admin' ? '/organization' : '/employee');
       } else {
         await register(formData);
@@ -49,103 +49,167 @@ const Login = () => {
 
   return (
     <div className="login-container">
-      <div className="login-card">
-        <div className="login-header">
-          <h1>Employee Monitor</h1>
-          <p>Track productivity and activity</p>
+      {/* Floating 3D Background Objects */}
+      <div className="background-objects">
+        {/* ... objects ... */}
+        <div className="obj sphere sphere-1"></div>
+        <div className="obj sphere sphere-2"></div>
+        <div className="obj sphere sphere-3"></div>
+        <div className="obj cube cube-1">
+          <div className="face front"></div>
+          <div className="face back"></div>
+          <div className="face right"></div>
+          <div className="face left"></div>
+          <div className="face top"></div>
+          <div className="face bottom"></div>
         </div>
-
-        <div className="login-tabs">
-          <button
-            className={`tab ${isLogin ? 'active' : ''}`}
-            onClick={() => setIsLogin(true)}
-          >
-            <LogIn size={18} />
-            Login
-          </button>
-          <button
-            className={`tab ${!isLogin ? 'active' : ''}`}
-            onClick={() => setIsLogin(false)}
-          >
-            <UserPlus size={18} />
-            Register
-          </button>
+        <div className="obj cube cube-2">
+          <div className="face front"></div>
+          <div className="face back"></div>
+          <div className="face right"></div>
+          <div className="face left"></div>
+          <div className="face top"></div>
+          <div className="face bottom"></div>
         </div>
+        <div className="obj prism prism-1"></div>
+        <div className="obj prism prism-2"></div>
+      </div>
 
-        {error && <div className="error">{error}</div>}
-
-        <form onSubmit={handleSubmit} className="login-form">
-          {!isLogin && (
-            <>
-              <div className="form-group">
-                <label className="label">Name</label>
-                <input
-                  type="text"
-                  name="name"
-                  className="input"
-                  value={formData.name}
-                  onChange={handleChange}
-                  required
-                />
-              </div>
-              <div className="form-group">
-                <label className="label">Organization Name</label>
-                <input
-                  type="text"
-                  name="organization_name"
-                  className="input"
-                  value={formData.organization_name}
-                  onChange={handleChange}
-                  required
-                />
-              </div>
-            </>
-          )}
-
-          <div className="form-group">
-            <label className="label">Email</label>
-            <input
-              type="email"
-              name="email"
-              className="input"
-              value={formData.email}
-              onChange={handleChange}
-              required
-            />
+      <div className="glass-card">
+        <div className="card-content">
+          <div className="header">
+            <h1>EMPLOYEE MONITORING<br />DASHBOARD</h1>
+            <p className="subtitle">{isLogin ? 'Welcome Back' : 'Create New Account'}</p>
           </div>
 
-          <div className="form-group">
-            <label className="label">Password</label>
-            <input
-              type="password"
-              name="password"
-              className="input"
-              value={formData.password}
-              onChange={handleChange}
-              required
-            />
-          </div>
+          {error && <div className="error-message">{error}</div>}
 
-          {!isLogin && (
-            <div className="form-group">
-              <label className="label">Role</label>
-              <select
-                name="role"
-                className="input"
-                value={formData.role}
-                onChange={handleChange}
-              >
-                <option value="employee">Employee</option>
-                <option value="admin">Admin (Manager)</option>
-                <option value="super_admin">Super Admin</option>
-              </select>
+          <form onSubmit={handleSubmit} className="login-form">
+            {!isLogin && (
+              <>
+                <div className="input-group">
+                  <label>Full Name</label>
+                  <div className="input-wrapper">
+                    <input
+                      type="text"
+                      name="name"
+                      value={formData.name}
+                      onChange={handleChange}
+                      placeholder=" "
+                      required
+                      style={{ paddingLeft: '16px' }} 
+                    />
+                    <div className="input-highlight"></div>
+                  </div>
+                </div>
+
+                <div className="input-group">
+                  <label>Organization Name</label>
+                  <div className="input-wrapper">
+                    <input
+                      type="text"
+                      name="organization_name"
+                      value={formData.organization_name}
+                      onChange={handleChange}
+                      placeholder=" "
+                      required
+                      style={{ paddingLeft: '16px' }}
+                    />
+                    <div className="input-highlight"></div>
+                  </div>
+                </div>
+              </>
+            )}
+
+            <div className="input-group">
+              <label>Email Address</label>
+              <div className="input-wrapper">
+                <Mail className="input-icon" size={18} />
+                <input
+                  type="email"
+                  name="email"
+                  value={formData.email}
+                  onChange={handleChange}
+                  placeholder=" "
+                  required
+                />
+                <div className="input-highlight"></div>
+              </div>
             </div>
-          )}
 
-          <button type="submit" className="btn btn-primary btn-block" disabled={loading}>
-            {loading ? 'Please wait...' : isLogin ? 'Login' : 'Register'}
-          </button>
-        </form>
+            <div className="input-group">
+              <label>Password</label>
+              <div className="input-wrapper">
+                <Lock className="input-icon" size={18} />
+                <input
+                  type={showPassword ? "text" : "password"}
+                  name="password"
+                  value={formData.password}
+                  onChange={handleChange}
+                  placeholder=" "
+                  required
+                />
+                <button 
+                  type="button" 
+                  className="password-toggle"
+                  onClick={() => setShowPassword(!showPassword)}
+                >
+                  {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
+                </button>
+                <div className="input-highlight"></div>
+              </div>
+            </div>
+
+            {!isLogin && (
+              <div className="input-group">
+                <label>Role</label>
+                <div className="input-wrapper">
+                  <select
+                    name="role"
+                    value={formData.role}
+                    onChange={handleChange}
+                    className="custom-select"
+                  >
+                    <option value="employee">Employee</option>
+                    <option value="admin">Admin (Manager)</option>
+                    <option value="super_admin">Super Admin</option>
+                  </select>
+                </div>
+              </div>
+            )}
+
+            {isLogin && (
+              <div className="forgot-password">
+                <a href="#">Forgot Password?</a>
+              </div>
+            )}
+
+            <button type="submit" className="login-btn" disabled={loading}>
+              <span className="btn-text">
+                {loading ? 'PROCESSING...' : (isLogin ? 'LOGIN' : 'REGISTER')}
+              </span>
+              <div className="btn-glow"></div>
+            </button>
+
+            <div className="toggle-mode">
+              <p>
+                {isLogin ? "Don't have an account? " : "Already have an account? "}
+                <button 
+                  type="button" 
+                  className="toggle-btn"
+                  onClick={() => setIsLogin(!isLogin)}
+                >
+                  {isLogin ? 'Register' : 'Login'}
+                </button>
+              </p>
+            </div>
+          </form>
+
+          <div className="footer-logo">
+            <Hexagon size={20} fill="currentColor" />
+            <span>EMD</span>
+          </div>
+        </div>
       </div>
     </div>
   );

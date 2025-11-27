@@ -9,6 +9,7 @@ import { formatToIST, formatTimeToIST } from '../utils/dateUtils';
 import WorkflowModal from '../components/WorkflowModal';
 import MonitoringConfigManager from '../components/MonitoringConfigManager';
 import ProcessMiningModal from '../components/ProcessMiningModal';
+import BackgroundAnimation from '../components/BackgroundAnimation';
 
 const OrganizationDashboard = () => {
   const { user, logout } = useAuth();
@@ -291,6 +292,7 @@ const OrganizationDashboard = () => {
 
   return (
     <div className="dashboard">
+      <BackgroundAnimation />
       <header className="dashboard-header">
         <div>
           <h1>{organization?.name}</h1>
